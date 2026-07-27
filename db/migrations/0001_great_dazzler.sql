@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD CONSTRAINT "users_role_check" CHECK ("users"."role" in ('admin', 'operations', 'payroll', 'viewer', 'charity_viewer'));--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_charity_viewer_requires_charity" CHECK ("users"."role" <> 'charity_viewer' or "users"."charity_id" is not null);
