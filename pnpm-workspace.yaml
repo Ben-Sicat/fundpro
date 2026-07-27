@@ -1,0 +1,8 @@
+# esbuild — vitest/vite need their platform binary installed by postinstall.
+# unrs-resolver — required by eslint-config-next's resolver.
+# sharp — Next.js image optimization.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+fetchRetries: 5
