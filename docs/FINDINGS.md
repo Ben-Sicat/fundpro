@@ -132,6 +132,96 @@ platform must compute it.
 
 ---
 
+## 3.7 How payroll is actually derived (measured, 2026-07-28)
+
+Verified empirically across all 8 sheets of `Payroll Reference - FundPro.xlsx`
+(2,431 rows carrying both a pledge amount and an incentive column).
+
+### The eligibility rule — RESOLVED by evidence
+
+**The `INCENTIVE` column is overloaded.** Every row holds *either* a commission
+*or* the reason no commission was earned:
+
+| Cell content | Rows | Meaning |
+|---|---|---|
+| number or `=H*n` formula | 780 | paid — commission earned |
+| **text** | 545 | **not paid**, and the text is the bank failure reason |
+| empty | 986 | not yet processed / pending |
+
+Every one of the 545 text values is a billing failure: `DO NOT HONOR` (213),
+`INSUFFICIENT FUNDS` (117), `GET NEW FORM OF PAYMENT` (61), `Cancelled` (24),
+`RETRY AFTER 10 DAYS` (22), `Restricted Card`, `PICK UP CARD`, `Issuer Reject`,
+`Incorrect CVV`, `TRANSACTION NOT ALLOWED`, `REFER TO ISSUER`,
+`Contact Issuing Bank`.
+
+So a fundraiser is paid **only when the pledge actually billed**. This settles
+MASTER_SPEC Part 5's open question (acquisition alone vs acquisition+approval)
+in favour of **acquisition + approval** — default `trigger_rule =
+'on_first_approval'` is correct, and is now evidence-backed rather than assumed.
+
+**Bonus:** those strings are effectively the bank's status dictionary in plain
+words, which the client is still waiting on. They can seed `status_codes`
+classifications now — retryable (`DO NOT HONOR`, `INSUFFICIENT FUNDS`,
+`RETRY AFTER 10 DAYS`, `REFER TO ISSUER`) vs final (`GET NEW FORM OF PAYMENT`,
+`PICK UP CARD`, `Restricted Card`, `TRANSACTION NOT ALLOWED`) vs `Cancelled`.
+
+### The commission amount — multiplier confirmed, driver NOT found
+
+Commission is unambiguously `pledge_amount × multiplier` (683 rows carry the
+literal formula `=H{row}*n`, H being Pledge Amount). Observed multipliers:
+
+| multiplier | rows |
+|---|---|
+| ×0.5 | 44 |
+| ×1.5 | 2 |
+| ×2.0 | 52 |
+| ×2.5 | 184 |
+| **×3.0** | **383** (mode) |
+| ×4.0 | 18 |
+
+**What does NOT explain the variation** — each was tested and ruled out:
+
+- **Frequency** — every numeric-incentive row is `Monthly`; no discrimination.
+- **Campaign** — mixed within a campaign (World Vision alone shows ×0.333,
+  ×0.5, ×1.0, ×2.5, ×3.0).
+- **Payroll period** — mixed within a single sheet.
+- **Fundraiser** — 29 of 44 fundraisers have *several* different multipliers,
+  so it is not a per-person tier or tenure rate.
+
+The driver is therefore **not present in these sheets**. Remaining candidates,
+in order of plausibility:
+
+1. **A billing-count ladder** — commission grows as the pledge proves itself
+   (×0.5 on a first partial, ×3 once fully realized). This fits the existing
+   `on_n_billings` trigger and fits realization being the core metric.
+2. Per-charity contract rate negotiated per intake batch.
+3. Manually keyed per row (i.e. no rule at all).
+
+**ASK THE CLIENT:** "Two donors both pledged ₱600/month in the same campaign,
+same fundraiser, same month — one earned ×2.5 and one ×3. What makes them
+different?" That single question resolves it.
+
+Until answered, `commission_plans.pct_of_pledge` holds the rate and the default
+is ×3.0 (the mode), NOT ×2.5 as originally seeded.
+
+### Derivation, as implemented
+
+`/lib/services/payroll.ts` — pure functions, unit-tested:
+
+```
+cutoffFor(date)            semi-monthly: 1–15 pays ~15th, 16–EOM pays ~30th
+eligibilityDateFor(p, plan)  on_submission     -> submittedAt
+                             on_first_approval -> debitDate   [default]
+                             on_n_billings     -> date of Nth approved event
+commissionFor(p, plan)     amount x (pctOfPledge / 100)
+generateDraftRun(...)      pledges whose eligibility date falls in the cutoff
+clawbackCandidatesFor(...) paid pledges later cancelled/failed within the
+                           realization window -> admin confirms -> nets
+netByFundraiser(...)       gross - confirmed clawbacks
+```
+
+---
+
 ## 4. Consolidated open questions for the client
 
 1. What determines the commission multiplier (×1 / ×2.5 / ×3 / ×4) — frequency,

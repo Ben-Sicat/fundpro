@@ -1,26 +1,363 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/* ==========================================================================
+   FundPro design system
+
+   Everything is driven by CSS custom properties so light/dark switches in one
+   place and components are written against roles, never raw hex.
+
+   Chart colors are the validated data-viz palette (scripts/validate_palette.js
+   passes every check in both modes against these surfaces). Do not hand-tune.
+   ========================================================================== */
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* -- planes ------------------------------------------------------------ */
+  --bg: #f4f4f2;
+  --bg-tint-a: rgba(42, 120, 214, 0.07); /* ambient glow, top-left */
+  --bg-tint-b: rgba(27, 175, 122, 0.06); /* ambient glow, bottom-right */
+  --surface: #ffffff;
+  --surface-2: #fafaf9;
+  --surface-3: #f2f2f0;
+  /* Glass: translucent + blurred. Chrome and containers ONLY — never behind
+     chart marks, where it would break the validated contrast. */
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --glass-highlight: rgba(255, 255, 255, 0.5);
+
+  /* -- ink --------------------------------------------------------------- */
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #797873;
+  --text-inverse: #ffffff;
+
+  /* -- lines ------------------------------------------------------------- */
+  --border: rgba(11, 11, 11, 0.1);
+  --border-strong: rgba(11, 11, 11, 0.18);
+  --grid: #e6e5e0;
+  --axis: #c3c2b7;
+
+  /* -- accent ------------------------------------------------------------ */
+  --accent: #2a78d6;
+  --accent-hover: #256abf;
+  --accent-soft: rgba(42, 120, 214, 0.1);
+  --on-accent: #ffffff;
+
+  /* -- status (fixed; always paired with icon + label, never color alone) - */
+  --good: #0ca30c;
+  --good-text: #006300;
+  --good-soft: rgba(12, 163, 12, 0.1);
+  --warning: #fab219;
+  --warning-text: #7a5200;
+  --warning-soft: rgba(250, 178, 25, 0.16);
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --critical-text: #a52222;
+  --critical-soft: rgba(208, 59, 59, 0.1);
+
+  /* -- categorical series (validated order — never cycle or re-order) ---- */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+
+  /* -- elevation --------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(11, 11, 11, 0.05);
+  --shadow-md: 0 1px 3px rgba(11, 11, 11, 0.06),
+    0 8px 24px -8px rgba(11, 11, 11, 0.1);
+  --shadow-lg: 0 2px 6px rgba(11, 11, 11, 0.06),
+    0 24px 48px -16px rgba(11, 11, 11, 0.16);
+  --glass-edge-opacity: 0.5;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark values are declared under BOTH scopes: the media query covers the OS
+   setting, the [data-theme] scope covers the in-app toggle, which must win in
+   both directions. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+
+    --bg: #0a0b0d;
+    --bg-tint-a: rgba(57, 135, 229, 0.1);
+    --bg-tint-b: rgba(25, 158, 112, 0.08);
+    --surface: #101113;
+    --surface-2: #16181b;
+    --surface-3: #1d2024;
+    --glass: rgba(22, 24, 27, 0.66);
+    --glass-strong: rgba(16, 17, 19, 0.86);
+    --glass-highlight: rgba(255, 255, 255, 0.12);
+
+    --text-primary: #ffffff;
+    --text-secondary: #a8aeb8;
+    --text-muted: #7d8491;
+    --text-inverse: #0b0b0b;
+
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --grid: #23262b;
+    --axis: #383c42;
+
+    --accent: #3987e5;
+    --accent-hover: #5598e7;
+    --accent-soft: rgba(57, 135, 229, 0.16);
+    --on-accent: #ffffff;
+
+    --good: #0ca30c;
+    --good-text: #3ddb3d;
+    --good-soft: rgba(12, 163, 12, 0.16);
+    --warning: #fab219;
+    --warning-text: #fac955;
+    --warning-soft: rgba(250, 178, 25, 0.16);
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --critical-text: #ff8a8a;
+    --critical-soft: rgba(208, 59, 59, 0.18);
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.5),
+      0 8px 24px -8px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5),
+      0 24px 48px -16px rgba(0, 0, 0, 0.7);
+    --glass-edge-opacity: 0.12;
   }
 }
 
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0a0b0d;
+  --bg-tint-a: rgba(57, 135, 229, 0.1);
+  --bg-tint-b: rgba(25, 158, 112, 0.08);
+  --surface: #101113;
+  --surface-2: #16181b;
+  --surface-3: #1d2024;
+  --glass: rgba(22, 24, 27, 0.66);
+  --glass-strong: rgba(16, 17, 19, 0.86);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+
+  --text-primary: #ffffff;
+  --text-secondary: #a8aeb8;
+  --text-muted: #7d8491;
+  --text-inverse: #0b0b0b;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --grid: #23262b;
+  --axis: #383c42;
+
+  --accent: #3987e5;
+  --accent-hover: #5598e7;
+  --accent-soft: rgba(57, 135, 229, 0.16);
+  --on-accent: #ffffff;
+
+  --good: #0ca30c;
+  --good-text: #3ddb3d;
+  --good-soft: rgba(12, 163, 12, 0.16);
+  --warning: #fab219;
+  --warning-text: #fac955;
+  --warning-soft: rgba(250, 178, 25, 0.16);
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --critical-text: #ff8a8a;
+  --critical-soft: rgba(208, 59, 59, 0.18);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 24px 48px -16px rgba(0, 0, 0, 0.7);
+  --glass-edge-opacity: 0.12;
+}
+
+/* Expose the roles as Tailwind utilities (bg-surface, text-muted, …). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-inverse: var(--text-inverse);
+
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+
+  --color-good: var(--good);
+  --color-good-text: var(--good-text);
+  --color-good-soft: var(--good-soft);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-soft: var(--warning-soft);
+  --color-critical: var(--critical);
+  --color-critical-text: var(--critical-text);
+  --color-critical-soft: var(--critical-soft);
+
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+
+  --shadow-card: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient gradient wash on the page plane — the depth that makes glass read as
+   glass. Fixed and non-interactive so it never affects layout or hit testing. */
+.app-canvas::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+      60rem 40rem at 8% -8%,
+      var(--bg-tint-a),
+      transparent 60%
+    ),
+    radial-gradient(50rem 36rem at 104% 104%, var(--bg-tint-b), transparent 60%);
+}
+
+/* --------------------------------------------------------------------------
+   Form controls
+
+   THE BUG THIS FIXES: the scaffold set body `color` to a light grey under
+   prefers-color-scheme: dark, and inputs inherit `color` from their ancestor.
+   On a white field that rendered light-grey-on-white — invisible text.
+   Every control below sets its own color AND background explicitly, so a field
+   can never inherit ink that its own background cannot support.
+   -------------------------------------------------------------------------- */
+input,
+textarea,
+select {
+  color: var(--text-primary);
+  background-color: var(--surface);
+  font: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1; /* Firefox lowers placeholder opacity by default */
+}
+
+/* Chrome's autofill repaints the field with its own colors; keep the text
+   legible without fighting the shadow hack. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  caret-color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+
+.glass {
+  background-color: var(--glass);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+.glass-strong {
+  background-color: var(--glass-strong);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+/* Hairline top highlight — reads as light catching a glass edge. */
+.glass-edge {
+  position: relative;
+}
+.glass-edge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--glass-edge-opacity);
+  background: linear-gradient(
+    180deg,
+    var(--glass-highlight),
+    transparent 40%
+  );
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbars, themed so they don't punch a bright hole in dark mode. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--axis) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--axis);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

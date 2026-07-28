@@ -2,11 +2,14 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { auth, signOut } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
+import { Sidebar, type NavGroup } from '@/components/shell/sidebar'
+import { ThemeToggle } from '@/components/shell/theme-toggle'
+import { getExceptions } from '@/lib/data'
+import { initials } from '@/lib/format'
 
 /**
- * Protected shell. Middleware already gates /app, but this re-checks the
- * session server-side: defence in depth, and it gives every page below a
- * guaranteed actor.
+ * Protected shell. Middleware already gates /app; re-checking here is defence
+ * in depth and gives every page below a guaranteed actor.
  */
 export default async function AppLayout({
   children,
@@ -23,44 +26,103 @@ export default async function AppLayout({
     permissions: session.user.permissions,
   }
   const perms = permissionsFor(actor)
+  const isCharityViewer = actor.role === 'charity_viewer'
 
-  // Nav is filtered by permission; the service layer enforces the same rules
-  // again, so hiding a link is convenience and never the security boundary.
-  const nav = [
-    { href: '/app/dashboard', label: 'Dashboard', show: true },
-    { href: '/app/pledges', label: 'Pledges', show: true },
-    { href: '/app/donors', label: 'Donors', show: perms.includes('see_pii') },
-    { href: '/app/imports', label: 'Imports', show: perms.includes('edit_reference') },
-    { href: '/app/payroll', label: 'Payroll', show: perms.includes('see_payroll') },
-    { href: '/app/exports', label: 'Exports', show: perms.includes('run_exports') },
-    { href: '/app/settings', label: 'Settings', show: actor.role === 'admin' },
-  ].filter((item) => item.show)
+  const openExceptions = (await getExceptions()).filter((e) => !e.resolved).length
+
+  // Nav is filtered by permission; the data layer enforces the same rules, so
+  // hiding a link is convenience and never the security boundary.
+  const groups: NavGroup[] = [
+    {
+      heading: null,
+      items: [{ href: '/app', label: 'Overview', glyph: '◇' }],
+    },
+    {
+      heading: 'Consolidated data',
+      items: [
+        { href: '/app/pledges', label: 'Applications', glyph: '▤' },
+        ...(perms.includes('see_pii')
+          ? [{ href: '/app/donors', label: 'Donors', glyph: '◎' }]
+          : []),
+        ...(!isCharityViewer
+          ? [
+              {
+                href: '/app/uploads',
+                label: 'Uploads',
+                glyph: '↥',
+                badge: openExceptions || undefined,
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      heading: 'Output',
+      items: [
+        { href: '/app/exports', label: 'Exports', glyph: '↧' },
+        ...(perms.includes('see_payroll')
+          ? [{ href: '/app/payroll', label: 'Payroll', glyph: '₱' }]
+          : []),
+      ],
+    },
+    ...(actor.role === 'admin'
+      ? [
+          {
+            heading: 'Admin',
+            items: [{ href: '/app/settings', label: 'Settings', glyph: '⚙' }],
+          },
+        ]
+      : []),
+  ]
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-6">
-            <Link href="/app" className="font-semibold text-slate-900">
+    <div className="app-canvas min-h-screen">
+      {/* Topbar: glass, so the page washes through as it scrolls under. */}
+      <header className="glass-strong sticky top-0 z-40 border-b border-line">
+        <div className="flex h-14 items-center gap-4 px-4">
+          <Link href="/app" className="flex items-center gap-2.5">
+            <span
+              className="grid size-7 place-items-center rounded-lg text-sm font-bold text-on-accent shadow-sm"
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--series-1), var(--series-3))',
+              }}
+              aria-hidden
+            >
+              ◈
+            </span>
+            <span className="text-sm font-semibold tracking-tight text-primary">
               FundPro
-            </Link>
-            <nav className="flex gap-4 text-sm">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="text-slate-600 hover:text-slate-900"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-500">
-              {session.user.email}
-              <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                {actor.role}
+            </span>
+          </Link>
+
+          <span className="hidden text-xs text-muted sm:inline">
+            Donor Management
+          </span>
+
+          <div className="flex-1" />
+
+          {isCharityViewer ? (
+            <span className="hidden rounded-md bg-accent-soft px-2 py-1 text-xs font-medium text-accent sm:inline">
+              Scoped to {actor.charityId}
+            </span>
+          ) : null}
+
+          <ThemeToggle />
+
+          <div className="flex items-center gap-2.5 border-l border-line pl-3">
+            <span
+              className="grid size-7 place-items-center rounded-full bg-surface-3 text-[11px] font-semibold text-secondary"
+              aria-hidden
+            >
+              {initials(session.user.name ?? session.user.email)}
+            </span>
+            <span className="hidden leading-tight sm:block">
+              <span className="block text-xs font-medium text-primary">
+                {session.user.name}
+              </span>
+              <span className="block text-[10px] uppercase tracking-wide text-muted">
+                {actor.role.replace('_', ' ')}
               </span>
             </span>
             <form
@@ -71,7 +133,7 @@ export default async function AppLayout({
             >
               <button
                 type="submit"
-                className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-2 hover:text-primary"
               >
                 Sign out
               </button>
@@ -79,7 +141,16 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+
+      <div className="flex">
+        <aside className="glass sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 border-r border-line lg:block">
+          <Sidebar groups={groups} />
+        </aside>
+
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[88rem]">{children}</div>
+        </main>
+      </div>
     </div>
   )
 }

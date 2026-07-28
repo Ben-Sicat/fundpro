@@ -1,27 +1,19 @@
 /**
- * Health check. Verifies the process is up AND that the database answers,
- * since "app responds but DB is unreachable" is the failure that matters.
- * Deliberately leaks no schema or connection details.
+ * Health check.
+ *
+ * MOCK MODE: the UI is served from the in-process mock dataset, so there is no
+ * database to probe. When the Python preprocessing API is wired up, this should
+ * check that upstream instead and report `degraded` when it is unreachable —
+ * never echo the upstream error, since connection strings appear in those.
  */
-import { sql } from 'drizzle-orm'
-import { db } from '@/db'
+import { PLEDGES } from '@/lib/mock/dataset'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const startedAt = Date.now()
-  try {
-    await db.execute(sql`select 1`)
-    return Response.json({
-      status: 'ok',
-      database: 'ok',
-      latencyMs: Date.now() - startedAt,
-    })
-  } catch {
-    // Never echo the driver error: connection strings appear in those messages.
-    return Response.json(
-      { status: 'degraded', database: 'unreachable' },
-      { status: 503 },
-    )
-  }
+  return Response.json({
+    status: 'ok',
+    dataSource: 'mock',
+    records: PLEDGES.length,
+  })
 }

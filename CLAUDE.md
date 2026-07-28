@@ -51,11 +51,28 @@ Sample files: /docs/samples/
 - PH Data Privacy Act (RA 10173) applies. No PII in logs, error
   messages, or seed data committed to git.
 
+## Architecture (revised 2026-07-27)
+The original single-Next.js-app plan changed. Current direction:
+- **Python service** does the Excel preprocessing/consolidation and exposes an
+  HTTP API. It owns parsing, matching on SERIAL NO, and file generation.
+- **Next.js app** is the UI. It must not re-implement parsing or consolidation.
+- **Supabase** is the database (Postgres, so /db/schema.ts still applies and can
+  be pushed to it — the schema work is not wasted).
+
+**The UI is currently mock-driven and needs no database at all.**
+- All page data comes from `/lib/data/index.ts` — the ONLY seam. Every function
+  is already async; swapping a body for a `fetch` to the Python API changes no
+  component. Validate responses with Zod there: the API is untrusted input.
+- Mock dataset: `/lib/mock/dataset.ts` (deterministic seeded PRNG + fixed TODAY,
+  so no hydration mismatches and screenshots are repeatable).
+- Auth: `/lib/mock/users.ts`, password `demo1234`. Delete when Supabase auth
+  lands.
+
 ## Stack
 - Next.js 15 (App Router, TypeScript strict)
 - PostgreSQL 16 + Drizzle ORM (/db/schema.ts, drizzle-kit migrations)
-- Dev DB: Neon free tier. Prod: Neon Launch + Vercel OR VPS + Docker
-  (undecided; keep both paths viable).
+- Dev DB: local Docker (port 5433) — currently unused by the UI.
+  Prod: Supabase.
 - Auth.js v5 (credentials), role carried in session
 - Tailwind CSS + shadcn/ui; Recharts for charts
 - exceljs for xlsx parse/generate; Zod at all API boundaries
@@ -77,6 +94,25 @@ Sample files: /docs/samples/
 - Legacy export column headers must match the legacy files EXACTLY,
   including quirks ("CUSTOMER'S NAME", "CHQ/MO/PO", "Fax AREACODE").
 - Age is computed from DOB at query time, never stored.
+
+## UI conventions
+- **Design tokens only.** Everything is CSS custom properties in
+  `app/globals.css` (light + dark declared under BOTH `prefers-color-scheme`
+  and `[data-theme]`). Never write a raw hex in a component.
+- **Every form control sets its own `color` AND `background-color`.** Inheriting
+  `color` from an ancestor is what made the original inputs render
+  light-grey-on-white and invisible. Do not reintroduce that.
+- **Glass (`.glass`, `.glass-strong`) is for chrome and containers only** —
+  never behind chart marks, where translucency breaks the validated contrast.
+- **Chart colours come from the validated palette** (`--series-1..4`). They pass
+  the dataviz validator in both modes; do not hand-tune them. Never use the
+  categorical green for a negative state — grey (`--axis`) is the "cancelled"
+  colour.
+- **No function props into Client Components.** Charts are client components;
+  a formatter function cannot cross the server/client boundary and throws at
+  render. Pass a named format (`format="moneyCompact"`) instead. `pnpm build`
+  will NOT catch this — dynamic routes only fail at request time, so click the
+  page.
 
 ## Commands
 pnpm dev · pnpm build · pnpm test · pnpm test:e2e ·

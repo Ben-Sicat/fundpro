@@ -1,18 +1,19 @@
 /**
- * Full Auth.js v5 setup (Node runtime). Middleware must import
- * ./auth.config instead — see the note there.
+ * Full Auth.js v5 setup (Node runtime). Middleware imports ./auth.config
+ * instead — see the note there.
+ *
+ * MOCK MODE: credentials are checked against lib/mock/users.ts so the app runs
+ * with no database. When the Supabase-backed users table lands, swap
+ * `findMockUser` for a query + bcrypt compare; nothing else here changes.
  */
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
-import { eq } from 'drizzle-orm'
-import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { db } from '@/db'
-import { users } from '@/db/auth-schema'
+import { findMockUser } from '@/lib/mock/users'
 import { authConfig } from './auth.config'
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(3),
   password: z.string().min(1),
 })
 
@@ -29,24 +30,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null
         const { email, password } = parsed.data
 
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, email.toLowerCase()))
-          .limit(1)
-
-        // Same failure for unknown email, no password set, inactive account and
-        // wrong password: never reveal which, and never log the address.
-        if (!user?.passwordHash || !user.isActive) return null
-        if (!(await bcrypt.compare(password, user.passwordHash))) return null
+        const user = findMockUser(email, password)
+        // One identical failure for unknown account and wrong password: never
+        // reveal which, and never log the address.
+        if (!user) return null
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role as never,
-          charityId: user.charityId,
-          permissions: user.permissions as never,
+          charityId: user.charityCode,
+          permissions: null,
         }
       },
     }),
@@ -54,9 +49,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 })
 
 /**
- * Current actor for service-layer authorization, or null if signed out.
- * Services should take an Actor rather than reading the session themselves,
- * so they stay unit-testable.
+ * Current actor for authorization checks, or null when signed out.
+ * Services take an Actor rather than reading the session themselves, so they
+ * stay unit-testable.
  */
 export async function currentActor() {
   const session = await auth()
