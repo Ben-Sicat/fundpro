@@ -1,0 +1,25 @@
+# Belt-and-braces on top of .gitignore.
+#
+# The CLI uploads the working directory, so anything not excluded here can reach
+# a public host. The real client trackers hold donor PII, masked PANs and
+# payroll data (PH Data Privacy Act, RA 10173) and must never leave this
+# machine. Listed explicitly rather than relying on .gitignore inference.
+doc/
+docs/samples/
+*.xlsx
+*.xls
+*.csv
+
+# Secrets — Vercel env vars carry these instead.
+.env
+.env.local
+.env*.local
+
+# Never needed at build time on Vercel.
+.git/
+node_modules/
+.next/
+db/migrations/
+coverage/
+playwright-report/
+test-results/
