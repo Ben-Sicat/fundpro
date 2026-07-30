@@ -62,8 +62,7 @@ export default async function OverviewPage() {
             Overview
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Consolidated across {count(kpis.signups)} applications · last 17 weeks
-            · sign-up date basis
+            {count(kpis.signups)} donor sign-ups over the last 4 months
           </p>
         </div>
         <div className="flex gap-2">
@@ -82,7 +81,7 @@ export default async function OverviewPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           accent
-          label="Realization rate"
+          label="Donors that stick"
           value={percent(kpis.realizationRate)}
           delta={kpis.realizationDelta}
           hint="vs prior period"
@@ -96,6 +95,7 @@ export default async function OverviewPage() {
           sparkColor="var(--series-3)"
         />
         <StatTile
+          gold
           label="Pledged value"
           value={moneyCompact(kpis.pledgedValue)}
           unit="/mo"
@@ -104,19 +104,19 @@ export default async function OverviewPage() {
           sparkColor="var(--series-2)"
         />
         <StatTile
-          label="Avg lag to first debit"
+          label="Days to first payment"
           value={kpis.avgLagDays.toFixed(1)}
           unit="days"
-          hint="sign-up → charged"
+          hint="from sign-up to money in"
         />
       </div>
 
       {/* ---- Primary chart + results split ---- */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+        <Card feature className="xl:col-span-2">
           <CardHeader
             title="Pledged value over time"
-            subtitle="Weekly, by sign-up date. Hover for the exact week."
+            subtitle="How much monthly giving was signed up each week"
             action={
               <span className="flex items-center gap-1.5 text-xs text-muted">
                 <span
@@ -131,10 +131,10 @@ export default async function OverviewPage() {
           <AreaChart data={series} metric="value" />
         </Card>
 
-        <Card>
+        <Card feature>
           <CardHeader
             title="Billing results"
-            subtitle={`${count(submitted)} submitted to the bank`}
+            subtitle={`${count(submitted)} sent to the bank so far`}
           />
           <Donut
             data={split.map((d) => ({
@@ -150,14 +150,14 @@ export default async function OverviewPage() {
 
       {/* ---- Performance ---- */}
       <div>
-        <SectionTitle hint="realization rate is what decides profitability">
+        <SectionTitle hint="who is bringing in donors that stick">
           Performance
         </SectionTitle>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card>
+          <Card feature>
             <CardHeader
-              title="Fundraiser leaderboard"
-              subtitle="Ranked by realized pledges, not raw sign-ups"
+              title="Top fundraisers"
+              subtitle="By donors who actually started paying"
             />
             <BarList
               data={leaderboard.slice(0, 8).map((f) => ({
@@ -173,7 +173,7 @@ export default async function OverviewPage() {
           <Card>
             <CardHeader
               title="Sites"
-              subtitle="Sign-ups and realization by acquisition site"
+              subtitle="Which venues bring in the most donors"
             />
             <BarList
               data={sites.map((s) => ({
@@ -196,7 +196,7 @@ export default async function OverviewPage() {
           <Card>
             <CardHeader
               title="Age bands"
-              subtitle="Count, with realization rate above each column"
+              subtitle="Which age groups give, and how many stick"
             />
             <ColumnChart
               data={ageBands.map((b) => ({
@@ -211,7 +211,7 @@ export default async function OverviewPage() {
           <Card>
             <CardHeader
               title="Instrument"
-              subtitle="Approval rate per instrument"
+              subtitle="Credit vs debit, and how often each goes through"
             />
             <ColumnChart
               data={instruments.map((d) => ({
@@ -223,7 +223,7 @@ export default async function OverviewPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Frequency mix" subtitle="Pledge cadence" />
+            <CardHeader title="Frequency mix" subtitle="How often donors give" />
             <BarList
               data={freq.map((f) => ({
                 label: f.label,
@@ -233,9 +233,9 @@ export default async function OverviewPage() {
               format="count"
             />
             <p className="mt-4 rounded-lg bg-warning-soft px-3 py-2 text-[11px] leading-relaxed text-warning-text">
-              <strong>⚠ Needs confirmation.</strong> The source files mix codes
-              (1, 3, 6, 12) with labels (Monthly, Semi-Annual). A wrong mapping
-              mis-states pledged value everywhere.
+              <strong>⚠ One thing to confirm.</strong> The spreadsheets write
+              giving frequency two different ways, so these totals need a quick
+              check with the team before anyone relies on them.
             </p>
           </Card>
         </div>
@@ -243,7 +243,7 @@ export default async function OverviewPage() {
 
       {/* ---- Recent consolidation activity ---- */}
       <div>
-        <SectionTitle hint="upload → match on SERIAL NO → consolidate → export">
+        <SectionTitle hint="every file the bank sends us">
           Recent uploads
         </SectionTitle>
         <Card>

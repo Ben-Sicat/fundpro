@@ -1,187 +1,220 @@
 @import 'tailwindcss';
 
 /* ==========================================================================
-   FundPro design system
+   FundPro design system — game-console look
 
-   Everything is driven by CSS custom properties so light/dark switches in one
-   place and components are written against roles, never raw hex.
+   The brief: the visual language of a premium game UI (Mobile Legends and
+   friends) on a tool that non-technical people use all day. So the RICHNESS
+   lives in the chrome — gradient plates, gold edges, bevels, glow — while the
+   data itself stays calm and legible. Bold frame, quiet contents.
 
-   Chart colors are the validated data-viz palette (scripts/validate_palette.js
-   passes every check in both modes against these surfaces). Do not hand-tune.
+   DARK IS THE PRIMARY THEME; light stays supported for bright rooms.
+
+   Chart colours are the validated data-viz palette, re-validated against
+   THESE surfaces (validate_palette.js: all checks pass, both modes).
+   Do not hand-tune them.
    ========================================================================== */
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+/* --------------------------------------------------------------------------
+   DARK (default)
+   -------------------------------------------------------------------------- */
 :root {
-  color-scheme: light;
-
-  /* -- planes ------------------------------------------------------------ */
-  --bg: #f4f4f2;
-  --bg-tint-a: rgba(42, 120, 214, 0.07); /* ambient glow, top-left */
-  --bg-tint-b: rgba(27, 175, 122, 0.06); /* ambient glow, bottom-right */
-  --surface: #ffffff;
-  --surface-2: #fafaf9;
-  --surface-3: #f2f2f0;
-  /* Glass: translucent + blurred. Chrome and containers ONLY — never behind
-     chart marks, where it would break the validated contrast. */
-  --glass: rgba(255, 255, 255, 0.72);
-  --glass-strong: rgba(255, 255, 255, 0.86);
-  --glass-highlight: rgba(255, 255, 255, 0.5);
-
-  /* -- ink --------------------------------------------------------------- */
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #797873;
-  --text-inverse: #ffffff;
-
-  /* -- lines ------------------------------------------------------------- */
-  --border: rgba(11, 11, 11, 0.1);
-  --border-strong: rgba(11, 11, 11, 0.18);
-  --grid: #e6e5e0;
-  --axis: #c3c2b7;
-
-  /* -- accent ------------------------------------------------------------ */
-  --accent: #2a78d6;
-  --accent-hover: #256abf;
-  --accent-soft: rgba(42, 120, 214, 0.1);
-  --on-accent: #ffffff;
-
-  /* -- status (fixed; always paired with icon + label, never color alone) - */
-  --good: #0ca30c;
-  --good-text: #006300;
-  --good-soft: rgba(12, 163, 12, 0.1);
-  --warning: #fab219;
-  --warning-text: #7a5200;
-  --warning-soft: rgba(250, 178, 25, 0.16);
-  --serious: #ec835a;
-  --critical: #d03b3b;
-  --critical-text: #a52222;
-  --critical-soft: rgba(208, 59, 59, 0.1);
-
-  /* -- categorical series (validated order — never cycle or re-order) ---- */
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-4: #eda100;
-
-  /* -- elevation --------------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgba(11, 11, 11, 0.05);
-  --shadow-md: 0 1px 3px rgba(11, 11, 11, 0.06),
-    0 8px 24px -8px rgba(11, 11, 11, 0.1);
-  --shadow-lg: 0 2px 6px rgba(11, 11, 11, 0.06),
-    0 24px 48px -16px rgba(11, 11, 11, 0.16);
-  --glass-edge-opacity: 0.5;
-}
-
-/* Dark values are declared under BOTH scopes: the media query covers the OS
-   setting, the [data-theme] scope covers the in-app toggle, which must win in
-   both directions. */
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme='light'])) {
-    color-scheme: dark;
-
-    --bg: #0a0b0d;
-    --bg-tint-a: rgba(57, 135, 229, 0.1);
-    --bg-tint-b: rgba(25, 158, 112, 0.08);
-    --surface: #101113;
-    --surface-2: #16181b;
-    --surface-3: #1d2024;
-    --glass: rgba(22, 24, 27, 0.66);
-    --glass-strong: rgba(16, 17, 19, 0.86);
-    --glass-highlight: rgba(255, 255, 255, 0.12);
-
-    --text-primary: #ffffff;
-    --text-secondary: #a8aeb8;
-    --text-muted: #7d8491;
-    --text-inverse: #0b0b0b;
-
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: rgba(255, 255, 255, 0.18);
-    --grid: #23262b;
-    --axis: #383c42;
-
-    --accent: #3987e5;
-    --accent-hover: #5598e7;
-    --accent-soft: rgba(57, 135, 229, 0.16);
-    --on-accent: #ffffff;
-
-    --good: #0ca30c;
-    --good-text: #3ddb3d;
-    --good-soft: rgba(12, 163, 12, 0.16);
-    --warning: #fab219;
-    --warning-text: #fac955;
-    --warning-soft: rgba(250, 178, 25, 0.16);
-    --serious: #ec835a;
-    --critical: #d03b3b;
-    --critical-text: #ff8a8a;
-    --critical-soft: rgba(208, 59, 59, 0.18);
-
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #c98500;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.5),
-      0 8px 24px -8px rgba(0, 0, 0, 0.6);
-    --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5),
-      0 24px 48px -16px rgba(0, 0, 0, 0.7);
-    --glass-edge-opacity: 0.12;
-  }
-}
-
-:root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #0a0b0d;
-  --bg-tint-a: rgba(57, 135, 229, 0.1);
-  --bg-tint-b: rgba(25, 158, 112, 0.08);
-  --surface: #101113;
-  --surface-2: #16181b;
-  --surface-3: #1d2024;
-  --glass: rgba(22, 24, 27, 0.66);
-  --glass-strong: rgba(16, 17, 19, 0.86);
-  --glass-highlight: rgba(255, 255, 255, 0.12);
+  /* -- planes: deep indigo, lit from above ------------------------------ */
+  --bg: #0b0e1c;
+  --bg-tint-a: rgba(79, 110, 232, 0.22);
+  --bg-tint-b: rgba(240, 180, 41, 0.12);
+  --bg-tint-c: rgba(128, 74, 214, 0.16);
+  --bg-grid: rgba(255, 255, 255, 0.02);
+  --surface: #171a2e;
+  --surface-2: #1e2340;
+  --surface-3: #2a3054;
+  --glass: rgba(30, 35, 64, 0.66);
+  --glass-strong: rgba(15, 18, 38, 0.9);
+  --glass-highlight: rgba(255, 255, 255, 0.16);
+  /* Panels are gradients, not flats — the single biggest cue that this is a
+     game surface rather than a dashboard. */
+  --panel-grad: linear-gradient(160deg, #232a4d 0%, #171a2e 46%, #141728 100%);
+  --panel-grad-hi: linear-gradient(160deg, #2c3560 0%, #1c2140 55%, #171b33 100%);
+  --header-grad: linear-gradient(90deg, rgba(79,110,232,0.30), rgba(128,74,214,0.16) 55%, transparent);
 
-  --text-primary: #ffffff;
-  --text-secondary: #a8aeb8;
-  --text-muted: #7d8491;
-  --text-inverse: #0b0b0b;
+  /* -- ink -------------------------------------------------------------- */
+  --text-primary: #f4f6ff;
+  --text-secondary: #b3bcdb;
+  --text-muted: #8089ad;
+  --text-inverse: #0b0e1c;
 
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --grid: #23262b;
-  --axis: #383c42;
+  /* -- lines ------------------------------------------------------------ */
+  --border: rgba(140, 160, 240, 0.16);
+  --border-strong: rgba(160, 180, 255, 0.28);
+  --bevel: rgba(255, 255, 255, 0.16); /* top edge of a raised panel */
+  /* Gold hairline: the ornamental edge that reads as "premium game panel". */
+  --edge-gold: rgba(240, 180, 41, 0.55);
+  --grid: #2a3054;
+  --axis: #495282;
 
-  --accent: #3987e5;
-  --accent-hover: #5598e7;
-  --accent-soft: rgba(57, 135, 229, 0.16);
+  /* -- accents: blue is the system, gold is the reward ------------------ */
+  --accent: #4f8ff5;
+  --accent-hover: #6ba3ff;
+  --accent-soft: rgba(79, 143, 245, 0.18);
+  --accent-glow: rgba(79, 143, 245, 0.5);
+  --accent-grad: linear-gradient(180deg, #5f9dff 0%, #3a72d8 100%);
   --on-accent: #ffffff;
 
+  --gold: #f0b429;
+  --gold-soft: rgba(240, 180, 41, 0.16);
+  --gold-glow: rgba(240, 180, 41, 0.45);
+  --gold-grad: linear-gradient(180deg, #ffd46b 0%, #e0a020 100%);
+  --on-gold: #2a1c00;
+
+  /* -- status (reserved; always with an icon + label) ------------------- */
   --good: #0ca30c;
-  --good-text: #3ddb3d;
+  --good-text: #4ee04e;
   --good-soft: rgba(12, 163, 12, 0.16);
   --warning: #fab219;
   --warning-text: #fac955;
   --warning-soft: rgba(250, 178, 25, 0.16);
   --serious: #ec835a;
   --critical: #d03b3b;
-  --critical-text: #ff8a8a;
+  --critical-text: #ff8f8f;
   --critical-soft: rgba(208, 59, 59, 0.18);
 
+  /* -- categorical series (validated order — never cycle or re-order) --- */
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
   --series-4: #c98500;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5),
-    0 24px 48px -16px rgba(0, 0, 0, 0.7);
-  --glass-edge-opacity: 0.12;
+
+  /* -- elevation & glow ------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.5), 0 10px 28px -10px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.5), 0 28px 56px -18px rgba(0, 0, 0, 0.8);
+  --glass-edge-opacity: 0.55;
 }
 
-/* Expose the roles as Tailwind utilities (bg-surface, text-muted, …). */
+/* --------------------------------------------------------------------------
+   LIGHT — an explicit opt-out, declared under both the OS preference and the
+   in-app toggle so the toggle wins in both directions.
+   -------------------------------------------------------------------------- */
+@media (prefers-color-scheme: light) {
+  :root:where(:not([data-theme='dark'])) {
+    color-scheme: light;
+
+    --bg: #eef0f4;
+    --bg-tint-a: rgba(42, 120, 214, 0.08);
+    --bg-tint-b: rgba(224, 168, 40, 0.07);
+    --bg-grid: rgba(11, 11, 11, 0.025);
+    --surface: #ffffff;
+    --surface-2: #f7f8fa;
+    --surface-3: #eceef2;
+    --glass: rgba(255, 255, 255, 0.74);
+    --glass-strong: rgba(255, 255, 255, 0.9);
+    --glass-highlight: rgba(255, 255, 255, 0.8);
+
+    --text-primary: #0b0d12;
+    --text-secondary: #4a5160;
+    --text-muted: #6e7686;
+    --text-inverse: #ffffff;
+
+    --border: rgba(11, 13, 18, 0.1);
+    --border-strong: rgba(11, 13, 18, 0.18);
+    --bevel: rgba(255, 255, 255, 0.9);
+    --grid: #e2e5ea;
+    --axis: #b9bfc9;
+
+    --accent: #2a78d6;
+    --accent-hover: #256abf;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+    --accent-glow: rgba(42, 120, 214, 0.28);
+
+    --gold: #9a6f00;
+    --gold-soft: rgba(224, 168, 40, 0.18);
+    --gold-glow: rgba(154, 111, 0, 0.22);
+    --on-gold: #ffffff;
+
+    --good-text: #006300;
+    --good-soft: rgba(12, 163, 12, 0.1);
+    --warning-text: #7a5200;
+    --warning-soft: rgba(250, 178, 25, 0.18);
+    --critical-text: #a52222;
+    --critical-soft: rgba(208, 59, 59, 0.1);
+
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+
+
+    --shadow-sm: 0 1px 2px rgba(11, 13, 18, 0.06);
+    --shadow-md: 0 1px 3px rgba(11, 13, 18, 0.07),
+      0 10px 28px -10px rgba(11, 13, 18, 0.12);
+    --shadow-lg: 0 2px 6px rgba(11, 13, 18, 0.08),
+      0 28px 56px -18px rgba(11, 13, 18, 0.18);
+    --glass-edge-opacity: 0.6;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #eef0f4;
+  --bg-tint-a: rgba(42, 120, 214, 0.08);
+  --bg-tint-b: rgba(224, 168, 40, 0.07);
+  --bg-grid: rgba(11, 11, 11, 0.025);
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --surface-3: #eceef2;
+  --glass: rgba(255, 255, 255, 0.74);
+  --glass-strong: rgba(255, 255, 255, 0.9);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+
+  --text-primary: #0b0d12;
+  --text-secondary: #4a5160;
+  --text-muted: #6e7686;
+  --text-inverse: #ffffff;
+
+  --border: rgba(11, 13, 18, 0.1);
+  --border-strong: rgba(11, 13, 18, 0.18);
+  --bevel: rgba(255, 255, 255, 0.9);
+  --grid: #e2e5ea;
+  --axis: #b9bfc9;
+
+  --accent: #2a78d6;
+  --accent-hover: #256abf;
+  --accent-soft: rgba(42, 120, 214, 0.1);
+  --accent-glow: rgba(42, 120, 214, 0.28);
+
+  --gold: #9a6f00;
+  --gold-soft: rgba(224, 168, 40, 0.18);
+  --gold-glow: rgba(154, 111, 0, 0.22);
+  --on-gold: #ffffff;
+
+  --good-text: #006300;
+  --good-soft: rgba(12, 163, 12, 0.1);
+  --warning-text: #7a5200;
+  --warning-soft: rgba(250, 178, 25, 0.18);
+  --critical-text: #a52222;
+  --critical-soft: rgba(208, 59, 59, 0.1);
+
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+
+
+  --shadow-sm: 0 1px 2px rgba(11, 13, 18, 0.06);
+  --shadow-md: 0 1px 3px rgba(11, 13, 18, 0.07),
+    0 10px 28px -10px rgba(11, 13, 18, 0.12);
+  --shadow-lg: 0 2px 6px rgba(11, 13, 18, 0.08),
+    0 28px 56px -18px rgba(11, 13, 18, 0.18);
+  --glass-edge-opacity: 0.6;
+}
+
+/* Expose roles as Tailwind utilities (bg-surface, text-muted, …). */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -203,6 +236,10 @@
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
 
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-on-gold: var(--on-gold);
+
   --color-good: var(--good);
   --color-good-text: var(--good-text);
   --color-good-soft: var(--good-soft);
@@ -221,7 +258,11 @@
   --shadow-card: var(--shadow-md);
   --shadow-float: var(--shadow-lg);
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+  /* Named faces, loaded via next/font. `system-ui` is deliberately NOT first:
+     it resolves to a monospace face on some Linux fontconfig setups. */
+  --font-sans: var(--font-rubik), 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-display: var(--font-chakra), var(--font-rubik), 'Segoe UI', Roboto,
     sans-serif;
 }
 
@@ -229,44 +270,61 @@
    Base
    ========================================================================== */
 
+/* Headings, HUD labels and hero figures take the display face; body copy and
+   table data stay in Rubik, which is easier to read in bulk. */
+h1,
+h2,
+h3,
+.hud,
+.numeral {
+  font-family: var(--font-display);
+}
+
 body {
   background-color: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Stops iOS Safari inflating text in landscape. */
+  -webkit-text-size-adjust: 100%;
 }
 
-/* Ambient gradient wash on the page plane — the depth that makes glass read as
-   glass. Fixed and non-interactive so it never affects layout or hit testing. */
+/* Ambient wash + faint tech grid: the depth that makes panels read as raised.
+   Fixed and non-interactive, so it never affects layout or hit testing. */
 .app-canvas::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(
-      60rem 40rem at 8% -8%,
-      var(--bg-tint-a),
-      transparent 60%
+  background:
+    radial-gradient(52rem 34rem at 6% -10%, var(--bg-tint-a), transparent 62%),
+    radial-gradient(44rem 30rem at 106% 108%, var(--bg-tint-b), transparent 62%),
+    radial-gradient(38rem 26rem at 78% -6%, var(--bg-tint-c), transparent 60%),
+    repeating-linear-gradient(
+      0deg,
+      var(--bg-grid) 0 1px,
+      transparent 1px 44px
     ),
-    radial-gradient(50rem 36rem at 104% 104%, var(--bg-tint-b), transparent 60%);
+    repeating-linear-gradient(
+      90deg,
+      var(--bg-grid) 0 1px,
+      transparent 1px 44px
+    );
 }
 
 /* --------------------------------------------------------------------------
    Form controls
 
-   THE BUG THIS FIXES: the scaffold set body `color` to a light grey under
-   prefers-color-scheme: dark, and inputs inherit `color` from their ancestor.
-   On a white field that rendered light-grey-on-white — invisible text.
-   Every control below sets its own color AND background explicitly, so a field
-   can never inherit ink that its own background cannot support.
+   Every control sets its own color AND background. Inheriting `color` from an
+   ancestor is what once rendered these light-grey on white and invisible.
    -------------------------------------------------------------------------- */
 input,
 textarea,
 select {
   color: var(--text-primary);
-  background-color: var(--surface);
+  background-color: var(--surface-2);
   font: inherit;
 }
 
@@ -276,14 +334,17 @@ textarea::placeholder {
   opacity: 1; /* Firefox lowers placeholder opacity by default */
 }
 
-/* Chrome's autofill repaints the field with its own colors; keep the text
-   legible without fighting the shadow hack. */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--text-primary);
-  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
   caret-color: var(--text-primary);
+}
+
+/* Dark-mode date pickers ship a black glyph that vanishes on a dark field. */
+:root:not([data-theme='light']) input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
 }
 
 :focus-visible {
@@ -296,23 +357,102 @@ input:-webkit-autofill:focus {
   color: var(--text-primary);
 }
 
-/* --------------------------------------------------------------------------
-   Utilities
-   -------------------------------------------------------------------------- */
+/* ==========================================================================
+   Gamified chrome
+   ========================================================================== */
 
 .glass {
   background-color: var(--glass);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
 }
 
 .glass-strong {
   background-color: var(--glass-strong);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
 }
 
-/* Hairline top highlight — reads as light catching a glass edge. */
+/* Raised panel: a lit top bevel and a dark base, so it reads as a physical
+   plate rather than a flat rectangle. */
+.panel {
+  position: relative;
+  background-image: var(--panel-grad);
+  box-shadow:
+    inset 0 1px 0 var(--bevel),
+    var(--shadow-md);
+}
+
+/* Ornamental gold hairline across the top of a feature plate. This one detail
+   does most of the "premium game panel" work. */
+.plate-gold::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--edge-gold) 18%,
+    var(--gold) 50%,
+    var(--edge-gold) 82%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* Corner ticks — angular framing without an image asset. */
+.corner-ticks::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--edge-gold), var(--edge-gold)) left top / 12px 1px no-repeat,
+    linear-gradient(var(--edge-gold), var(--edge-gold)) left top / 1px 12px no-repeat,
+    linear-gradient(var(--edge-gold), var(--edge-gold)) right bottom / 12px 1px no-repeat,
+    linear-gradient(var(--edge-gold), var(--edge-gold)) right bottom / 1px 12px no-repeat;
+  opacity: 0.75;
+}
+
+/* Gradient wash behind a panel heading, fading to nothing. */
+.panel-head {
+  background-image: var(--header-grad);
+}
+
+/* Chamfered corners — the angular MOBA-panel silhouette. Applied to feature
+   panels only; every clipped corner costs readable area, so dense tables keep
+   ordinary rounded corners. */
+.chamfer {
+  clip-path: polygon(
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
+  );
+}
+
+.chamfer-sm {
+  clip-path: polygon(
+    8px 0,
+    100% 0,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    0 100%,
+    0 8px
+  );
+}
+
+/* A clip-path cuts the border off, so chamfered panels wear their outline as
+   an inset ring instead. */
+.chamfer-ring {
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    inset 0 1px 0 var(--bevel);
+}
+
 .glass-edge {
   position: relative;
 }
@@ -323,15 +463,105 @@ input:-webkit-autofill:focus {
   border-radius: inherit;
   pointer-events: none;
   opacity: var(--glass-edge-opacity);
+  background: linear-gradient(180deg, var(--glass-highlight), transparent 42%);
+}
+
+/* Accent glows. Reserved for the headline metric and earned states — if
+   everything glows, nothing stands out. */
+.glow-accent {
+  box-shadow:
+    inset 0 0 0 1px var(--accent-glow),
+    0 0 24px -6px var(--accent-glow),
+    var(--shadow-md);
+}
+
+.glow-gold {
+  box-shadow:
+    inset 0 0 0 1px var(--gold-glow),
+    0 0 26px -6px var(--gold-glow),
+    var(--shadow-md);
+}
+
+/* Section heading rule with an angular notch. */
+.rule-notch {
+  height: 1px;
   background: linear-gradient(
-    180deg,
-    var(--glass-highlight),
-    transparent 40%
+    90deg,
+    var(--border-strong),
+    transparent 70%
   );
+}
+
+/* XP / progress track. The fill carries a moving sheen so a bar mid-progress
+   reads as active rather than stalled. */
+.xp-track {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.xp-fill {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.xp-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.32),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: xp-sheen 2.6s ease-in-out infinite;
+}
+
+@keyframes xp-sheen {
+  0%,
+  55% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* Condensed, tracked-out label styling — the "HUD" voice. Used on labels
+   only; never on data, which must stay quick to read. */
+.hud {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+}
+
+/* Glossy button face: gradient + a top highlight, the way game buttons read.
+   Kept to buttons so it never competes with the data. */
+.btn-gloss {
+  position: relative;
+  overflow: hidden;
+}
+.btn-gloss::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), transparent);
+  pointer-events: none;
+}
+
+/* Big hero numerals. */
+.numeral {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 800;
 }
 
 /* Scrollbars, themed so they don't punch a bright hole in dark mode. */
@@ -353,11 +583,13 @@ input:-webkit-autofill:focus {
   background-clip: content-box;
 }
 
+/* Honour the OS setting: the sheen and any transition are decorative. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

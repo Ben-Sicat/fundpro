@@ -55,9 +55,7 @@ export default async function ExportsPage() {
           Exports
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Every report is the same consolidated master with a different column
-          set and filter — so each one shows its row count before you generate
-          it. Grouped by who is asking, not by which table it comes from.
+Every report you need, ready to download. Each one shows how many rows you will get before you make it.
         </p>
       </div>
 
@@ -199,13 +197,13 @@ export default async function ExportsPage() {
 
       {/* ---- Audit trail ---- */}
       <div>
-        <SectionTitle hint="every export is logged, and PII exports are flagged">
+        <SectionTitle hint="a record of every file downloaded">
           Recent exports
         </SectionTitle>
         <Card>
           <CardHeader
             title="Export log"
-            subtitle="Required for the Data Privacy Act audit trail"
+            subtitle="Who downloaded what, and when"
           />
           <Table>
             <thead>

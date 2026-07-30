@@ -64,8 +64,7 @@ export default async function PledgesPage({
             Applications
           </h1>
           <p className="mt-1 text-sm text-muted">
-            The consolidated master — every application enriched with its latest
-            bank outcome, joined on SERIAL NO.
+Every donor sign-up, with the latest word from the bank.
           </p>
         </div>
         <Link href="/app/exports">
@@ -75,7 +74,7 @@ export default async function PledgesPage({
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <StatTile label="Matching" value={count(rows.length)} hint="applications" />
         <StatTile
           label="Realization"
@@ -184,7 +183,7 @@ export default async function PledgesPage({
       <Card>
         {shown.length === 0 ? (
           <EmptyState
-            title="No applications match"
+            title="Nothing matches that"
             description="Try widening the date range or clearing a filter."
             action={
               <Link href="/app/pledges">
@@ -199,14 +198,14 @@ export default async function PledgesPage({
                 <tr>
                   <Th>Serial no</Th>
                   <Th>Donor</Th>
-                  <Th>Charity</Th>
-                  <Th>Fundraiser</Th>
+                  <Th hide="lg">Charity</Th>
+                  <Th hide="md">Fundraiser</Th>
                   <Th align="right">Amount</Th>
-                  <Th>Freq</Th>
-                  <Th>Sign-up</Th>
-                  <Th>Debit</Th>
+                  <Th hide="xl">Freq</Th>
+                  <Th hide="sm">Sign-up</Th>
+                  <Th hide="lg">Debit</Th>
                   <Th>Status</Th>
-                  <Th align="center">Verified</Th>
+                  <Th align="center" hide="xl">Verified</Th>
                 </tr>
               </thead>
               <tbody>
@@ -221,20 +220,20 @@ export default async function PledgesPage({
                       </Link>
                     </Td>
                     <Td className="text-primary">{p.donorName}</Td>
-                    <Td>
+                    <Td hide="lg">
                       <Badge tone="neutral">{p.charityCode}</Badge>
                     </Td>
-                    <Td>{p.fundraiserName}</Td>
+                    <Td hide="md">{p.fundraiserName}</Td>
                     <Td align="right" className="tabular text-primary">
                       {money(p.amount, p.currency)}
                     </Td>
-                    <Td className="text-xs">{p.frequency}</Td>
-                    <Td className="whitespace-nowrap">{date(p.signupDate)}</Td>
-                    <Td className="whitespace-nowrap">{date(p.debitDate)}</Td>
+                    <Td hide="xl" className="text-xs">{p.frequency}</Td>
+                    <Td hide="sm" className="whitespace-nowrap">{date(p.signupDate)}</Td>
+                    <Td hide="lg" className="whitespace-nowrap">{date(p.debitDate)}</Td>
                     <Td>
                       <StatusBadge pledge={p} />
                     </Td>
-                    <Td align="center">
+                    <Td align="center" hide="xl">
                       {p.verified ? (
                         <span className="text-good-text" title="Phoned and confirmed">
                           ✓

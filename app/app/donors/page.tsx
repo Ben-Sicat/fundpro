@@ -35,8 +35,7 @@ export default async function DonorsPage({
           Donors
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          One record per person, across every application they signed. Duplicates
-          matter: the same human counted twice pays commission twice.
+One card per person. If someone signed up twice, we flag it so nobody gets paid twice.
         </p>
       </div>
 
@@ -62,7 +61,7 @@ export default async function DonorsPage({
           <Card>
             <CardHeader
               title="Needs a human decision"
-              subtitle="Flagged, never auto-merged — a wrong merge is harder to undo than a missed one."
+              subtitle="We flag these but never merge them for you — that call is yours."
             />
             <Table>
               <thead>
