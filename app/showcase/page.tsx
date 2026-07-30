@@ -153,7 +153,7 @@ export default async function ShowcasePage({
               }))}
               centreLabel="started paying"
               centreValue={percent(kpis.realizationRate, 0)}
-              size={150}
+              maxSize={150}
             />
           </div>
         </div>
