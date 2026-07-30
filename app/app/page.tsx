@@ -6,8 +6,13 @@ import { AreaChart } from '@/components/charts/area-chart'
 import { BarList } from '@/components/charts/bar-list'
 import { Donut } from '@/components/charts/donut'
 import { ColumnChart } from '@/components/charts/column-chart'
+import { FilterBar, filtersFromParams } from '@/components/filter-bar'
 import {
   getAgeBands,
+  getCharities,
+  getFundraiserNames,
+  getLeaderNames,
+  getSiteNames,
   getFrequencyMix,
   getFundraiserPerformance,
   getInstrumentSplit,
@@ -17,7 +22,7 @@ import {
   getTimeSeries,
   getUploads,
 } from '@/lib/data'
-import { count, date, moneyCompact, percent } from '@/lib/format'
+import { count, date, dateShort, moneyCompact, percent } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Overview · FundPro' }
 
@@ -36,19 +41,34 @@ const SPLIT_COLORS: Record<string, string> = {
   cancelled: 'var(--axis)',
 }
 
-export default async function OverviewPage() {
-  const [kpis, series, split, leaderboard, sites, instruments, ageBands, freq, uploads] =
-    await Promise.all([
-      getKpis(),
-      getTimeSeries(),
-      getResultsSplit(),
-      getFundraiserPerformance(),
-      getSitePerformance(),
-      getInstrumentSplit(),
-      getAgeBands(),
-      getFrequencyMix(),
-      getUploads(),
-    ])
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
+  const sp = await searchParams
+  // One filter object drives every widget, so the whole page always describes
+  // the same slice of data.
+  const f = filtersFromParams(sp)
+
+  const [
+    kpis, series, split, leaderboard, sites, instruments, ageBands, freq, uploads,
+    charities, fundraiserNames, leaderNames, siteNames,
+  ] = await Promise.all([
+    getKpis(f),
+    getTimeSeries(f),
+    getResultsSplit(f),
+    getFundraiserPerformance(f),
+    getSitePerformance(f),
+    getInstrumentSplit(f),
+    getAgeBands(f),
+    getFrequencyMix(f),
+    getUploads(),
+    getCharities(),
+    getFundraiserNames(),
+    getLeaderNames(),
+    getSiteNames(),
+  ])
 
   const submitted = split.reduce((s, d) => s + d.value, 0)
   const recentUploads = uploads.slice(0, 4)
@@ -77,8 +97,17 @@ export default async function OverviewPage() {
         </div>
       </div>
 
+      <FilterBar
+        action="/app"
+        current={sp}
+        charities={charities}
+        fundraisers={fundraiserNames}
+        leaders={leaderNames}
+        sites={siteNames}
+      />
+
       {/* ---- KPI row. Realization rate is the headline metric. ---- */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
         <StatTile
           accent
           label="Donors that stick"
@@ -102,6 +131,12 @@ export default async function OverviewPage() {
           hint={`avg ${moneyCompact(kpis.avgPledge)}`}
           spark={series.map((p) => p.value)}
           sparkColor="var(--series-2)"
+        />
+        <StatTile
+          label="Average gift"
+          value={moneyCompact(kpis.avgPledge)}
+          unit="/mo"
+          hint={`${percent(kpis.verifiedPct, 0)} phone-verified`}
         />
         <StatTile
           label="Days to first payment"
@@ -173,12 +208,15 @@ export default async function OverviewPage() {
           <Card>
             <CardHeader
               title="Sites"
-              subtitle="Which venues bring in the most donors"
+              subtitle="Where, when, and how many people worked it"
             />
             <BarList
               data={sites.map((s) => ({
                 label: s.name,
-                sublabel: `${s.charityCode} · ${s.country}`,
+                // Who and when, not just where.
+                sublabel: `${s.charityCode} · ${s.staffCount} staff · from ${dateShort(s.startsOn)}${
+                  s.endsOn ? ` to ${dateShort(s.endsOn)}` : ' (running)'
+                }`,
                 value: s.signups,
                 note: percent(s.realizationRate, 0),
                 tone: 'series-3',

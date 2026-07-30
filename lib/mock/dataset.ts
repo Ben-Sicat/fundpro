@@ -90,52 +90,70 @@ const SITES = [
     locationName: 'Mactan-Cebu International Airport Terminal 1',
     country: 'PH' as const,
     charityCode: 'STC',
+    startsOn: '2026-04-06',
+    endsOn: '2026-07-31',
   },
   {
     name: 'MCIA T2 — July drive',
     locationName: 'Mactan-Cebu International Airport Terminal 2',
     country: 'PH' as const,
     charityCode: 'STC',
+      startsOn: '2026-05-01',
+    endsOn: '2026-07-31',
   },
   {
     name: 'SM Light Mall — atrium',
     locationName: 'SM Light Mall',
     country: 'PH' as const,
     charityCode: 'UNHCR',
+      startsOn: '2026-04-20',
+    endsOn: null,
   },
   {
     name: 'Laguindingan — arrivals',
     locationName: 'Laguindingan International Airport',
     country: 'PH' as const,
     charityCode: 'WV',
+      startsOn: '2026-05-11',
+    endsOn: '2026-07-15',
   },
   {
     name: 'LRT Sri Rampai — concourse',
     locationName: 'LRT Sri Rampai',
     country: 'MY' as const,
     charityCode: 'UNHCR',
+      startsOn: '2026-04-13',
+    endsOn: null,
   },
   {
     name: 'Amcorp Mall — ground',
     locationName: 'Amcorp Mall',
     country: 'MY' as const,
     charityCode: 'WWF',
+      startsOn: '2026-06-01',
+    endsOn: null,
   },
 ]
 
 const LEADERS = ['Adora Lumbre', 'Mark Ramayrat', 'Jhon Magno'] as const
 
+/**
+ * `leaderNames` is a LIST: the notes call out that a fundraiser can report to
+ * more than one leader, and the schema models it as an effective-dated m2m.
+ * Two people below sit under two leaders — a single-leader mock would have
+ * hidden that case entirely.
+ */
 const FUNDRAISERS = [
-  { name: 'Almara Pasco', leaderName: 'Adora Lumbre' },
-  { name: 'Rico Salvador', leaderName: 'Adora Lumbre' },
-  { name: 'Carmela Dimaano', leaderName: 'Adora Lumbre' },
-  { name: 'Noel Gatchalian', leaderName: 'Mark Ramayrat' },
-  { name: 'Imelda Padilla', leaderName: 'Mark Ramayrat' },
-  { name: 'Boyet Calderon', leaderName: 'Mark Ramayrat' },
-  { name: 'Grace Tolentino', leaderName: 'Jhon Magno' },
-  { name: 'Vicente Ocampo', leaderName: 'Jhon Magno' },
-  { name: 'Sanya Rivera', leaderName: 'Jhon Magno' },
-  { name: 'Paulo Espino', leaderName: 'Adora Lumbre' },
+  { name: 'Almara Pasco', leaderNames: ['Adora Lumbre'], code: 'FR001', active: true },
+  { name: 'Rico Salvador', leaderNames: ['Adora Lumbre'], code: 'FR002', active: true },
+  { name: 'Carmela Dimaano', leaderNames: ['Adora Lumbre', 'Jhon Magno'], code: 'FR003', active: true },
+  { name: 'Noel Gatchalian', leaderNames: ['Mark Ramayrat'], code: 'FR004', active: true },
+  { name: 'Imelda Padilla', leaderNames: ['Mark Ramayrat'], code: 'FR005', active: true },
+  { name: 'Boyet Calderon', leaderNames: ['Mark Ramayrat'], code: 'FR006', active: true },
+  { name: 'Grace Tolentino', leaderNames: ['Jhon Magno'], code: 'FR007', active: true },
+  { name: 'Vicente Ocampo', leaderNames: ['Jhon Magno'], code: 'FR008', active: true },
+  { name: 'Sanya Rivera', leaderNames: ['Jhon Magno', 'Mark Ramayrat'], code: 'FR009', active: true },
+  { name: 'Paulo Espino', leaderNames: ['Adora Lumbre'], code: 'FR010', active: false },
 ] as const
 
 const FIRST_NAMES = [
@@ -333,7 +351,7 @@ for (let i = 0; i < PLEDGE_COUNT; i++) {
     locationName: site.locationName,
     agentId: pick(AGENTS),
     fundraiserName: fundraiser.name,
-    leaderName: fundraiser.leaderName,
+    leaderName: fundraiser.leaderNames[0],
 
     amount,
     currency: site.country === 'MY' ? 'MYR' : 'PHP',
@@ -790,8 +808,8 @@ export function computeSitePerformance(
       locationName: site.locationName,
       country: site.country,
       charityCode: site.charityCode,
-      startsOn: iso(TODAY, -90),
-      endsOn: null,
+      startsOn: site.startsOn,
+      endsOn: site.endsOn ?? null,
       staffCount: new Set(list.map((p) => p.fundraiserName)).size,
       signups: list.length,
       realizationRate: submitted.length ? realized.length / submitted.length : 0,
@@ -801,3 +819,78 @@ export function computeSitePerformance(
 }
 
 export { LEADERS, SITES, FUNDRAISERS }
+
+
+// ---------------------------------------------------------------------------
+// Team — fundraisers and leaders
+// ---------------------------------------------------------------------------
+
+export interface FundraiserRecord {
+  name: string
+  code: string
+  active: boolean
+  /** A fundraiser can report to more than one leader. */
+  leaderNames: string[]
+  signups: number
+  realized: number
+  realizationRate: number
+  pledgedValue: number
+  avgPledge: number
+  sites: string[]
+}
+
+export interface LeaderRecord {
+  name: string
+  teamSize: number
+  fundraiserNames: string[]
+  signups: number
+  realized: number
+  realizationRate: number
+  pledgedValue: number
+}
+
+export function computeFundraiserRecords(rows: Pledge[] = PLEDGES): FundraiserRecord[] {
+  return FUNDRAISERS.map((fr) => {
+    const list = rows.filter((p) => p.fundraiserName === fr.name)
+    const submitted = list.filter((p) => p.submittedAt !== null)
+    const realized = list.filter(isRealized)
+    const value = list.reduce((s, p) => s + p.amount, 0)
+    return {
+      name: fr.name,
+      code: fr.code,
+      active: fr.active,
+      leaderNames: [...fr.leaderNames],
+      signups: list.length,
+      realized: realized.length,
+      realizationRate: submitted.length ? realized.length / submitted.length : 0,
+      pledgedValue: value,
+      avgPledge: list.length ? value / list.length : 0,
+      sites: Array.from(new Set(list.map((p) => p.siteName))).filter(Boolean),
+    }
+  }).sort((a, b) => b.realized - a.realized)
+}
+
+/**
+ * Leader roll-up.
+ *
+ * A fundraiser under two leaders counts toward BOTH, so the per-leader figures
+ * deliberately do not sum to the company total. Anything else would either
+ * drop a leader's team member or silently pick one leader as "the real" one.
+ */
+export function computeLeaderRecords(rows: Pledge[] = PLEDGES): LeaderRecord[] {
+  const frs = computeFundraiserRecords(rows)
+  return LEADERS.map((leader) => {
+    const team = frs.filter((f) => f.leaderNames.includes(leader))
+    const signups = team.reduce((s, f) => s + f.signups, 0)
+    const realized = team.reduce((s, f) => s + f.realized, 0)
+    return {
+      name: leader,
+      teamSize: team.length,
+      fundraiserNames: team.map((f) => f.name),
+      signups,
+      realized,
+      realizationRate: signups ? realized / signups : 0,
+      pledgedValue: team.reduce((s, f) => s + f.pledgedValue, 0),
+    }
+  }).sort((a, b) => b.realized - a.realized)
+}

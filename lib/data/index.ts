@@ -28,9 +28,13 @@ import {
   STATUS_CODES,
   UPLOADS,
   computeFundraiserPerformance,
+  computeFundraiserRecords,
   computeKpis,
+  computeLeaderRecords,
   computeSitePerformance,
   computeTimeSeries,
+  type FundraiserRecord,
+  type LeaderRecord,
 } from '@/lib/mock/dataset'
 import {
   DEFAULT_PLAN,
@@ -93,12 +97,24 @@ export interface PledgeFilters {
   status?: 'realized' | 'retrying' | 'failed' | 'cancelled' | 'pending'
   fundraiserName?: string
   siteName?: string
+  /** Matches any fundraiser who reports to this leader, primary or not. */
+  leaderName?: string
   /** Verification-call gate: false selects the backlog still awaiting a call. */
   verified?: boolean
   basis?: DateBasis
   from?: string
   to?: string
 }
+
+/**
+ * Every leader a fundraiser reports to. The pledge row stores only the primary
+ * leader, so filtering on that alone would hide the second team a shared
+ * fundraiser belongs to.
+ */
+const LEADERS_BY_FUNDRAISER = new Map(
+  computeFundraiserRecords().map((f) => [f.name, f.leaderNames]),
+)
+const leadersOf = (name: string) => LEADERS_BY_FUNDRAISER.get(name) ?? []
 
 function matches(p: Pledge, f: PledgeFilters): boolean {
   if (f.q) {
@@ -113,6 +129,7 @@ function matches(p: Pledge, f: PledgeFilters): boolean {
   if (f.charityCode && p.charityCode !== f.charityCode) return false
   if (f.fundraiserName && p.fundraiserName !== f.fundraiserName) return false
   if (f.siteName && p.siteName !== f.siteName) return false
+  if (f.leaderName && !leadersOf(p.fundraiserName).includes(f.leaderName)) return false
   if (f.verified !== undefined && p.verified !== f.verified) return false
 
   if (f.status) {
@@ -444,4 +461,24 @@ export async function getDerivedPayrollRun(asOf = '2026-07-28'): Promise<{
   const clawbacks = clawbackCandidatesFor(paid, payrollPledges, plans)
 
   return { cutoff, lines, nets: netByFundraiser(lines, clawbacks), clawbacks }
+}
+
+// ---------------------------------------------------------------------------
+// Team
+// ---------------------------------------------------------------------------
+
+export async function getFundraiserRecords(
+  filters: PledgeFilters = {},
+): Promise<FundraiserRecord[]> {
+  return computeFundraiserRecords(PLEDGES.filter((p) => matches(p, filters)))
+}
+
+export async function getLeaderRecords(
+  filters: PledgeFilters = {},
+): Promise<LeaderRecord[]> {
+  return computeLeaderRecords(PLEDGES.filter((p) => matches(p, filters)))
+}
+
+export async function getLeaderNames(): Promise<string[]> {
+  return (await getLeaderRecords()).map((l) => l.name)
 }
