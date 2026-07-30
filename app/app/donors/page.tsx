@@ -18,13 +18,23 @@ import { age, count, date, money } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Donors · FundPro' }
 
+const PAGE_SIZE = 40
+
 export default async function DonorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{ q?: string; page?: string }>
 }) {
-  const { q } = await searchParams
+  const sp = await searchParams
+  const { q } = sp
   const donors = await getDonors(q)
+
+  // Previously this rendered donors.slice(0, 60) with no pagination and no
+  // indicator: 245 of 305 people were silently invisible, so anyone searching
+  // for a donor outside the first 60 would conclude they were not in the system.
+  const page = Math.max(1, Number(sp.page ?? '1') || 1)
+  const totalPages = Math.max(1, Math.ceil(donors.length / PAGE_SIZE))
+  const shown = donors.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const duplicates = donors.filter((d) => d.duplicateOf)
   const multi = donors.filter((d) => d.pledgeCount > 1)
 
@@ -112,6 +122,7 @@ One card per person. If someone signed up twice, we flag it so nobody gets paid 
             </label>
             <Input id="q" name="q" defaultValue={q ?? ''} placeholder="Name or email…" />
           </div>
+          <input type="hidden" name="page" value="1" />
           <Button type="submit" variant="primary">
             Search
           </Button>
@@ -138,7 +149,7 @@ One card per person. If someone signed up twice, we flag it so nobody gets paid 
             </tr>
           </thead>
           <tbody>
-            {donors.slice(0, 60).map((d) => (
+            {shown.map((d) => (
               <Tr key={d.id}>
                 <Td className="font-medium text-primary">
                   <span className="flex items-center gap-2">
@@ -167,6 +178,29 @@ One card per person. If someone signed up twice, we flag it so nobody gets paid 
             ))}
           </tbody>
         </Table>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+          <span>
+            Showing {count((page - 1) * PAGE_SIZE + 1)}–
+            {count(Math.min(page * PAGE_SIZE, donors.length))} of{' '}
+            {count(donors.length)}
+          </span>
+          <span className="flex items-center gap-2">
+            {page > 1 ? (
+              <Link href={{ pathname: '/app/donors', query: { ...sp, page: page - 1 } }}>
+                <Button size="sm">← Prev</Button>
+              </Link>
+            ) : null}
+            <span className="tabular">
+              Page {page} / {totalPages}
+            </span>
+            {page < totalPages ? (
+              <Link href={{ pathname: '/app/donors', query: { ...sp, page: page + 1 } }}>
+                <Button size="sm">Next →</Button>
+              </Link>
+            ) : null}
+          </span>
+        </div>
       </Card>
     </div>
   )
