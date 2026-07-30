@@ -30,9 +30,9 @@ export function ColumnChart({
   const max = Math.max(...data.map((d) => d.value), 1)
 
   return (
-    <div>
+    <div className="@container">
       <div
-        className="flex items-end gap-2"
+        className="flex items-end gap-1.5 @[20rem]:gap-2"
         style={{ height }}
         onMouseLeave={() => setHover(null)}
       >
@@ -46,9 +46,11 @@ export function ColumnChart({
               onMouseEnter={() => setHover(d.label)}
             >
               {/* Rate label sits above the column: the secondary measure as
-                  text, so it needs no second scale. */}
+                  text, so it needs no second scale. It is also the first thing
+                  to drop — with 5 columns in a narrow card there is not room
+                  for two stacked labels. */}
               {d.rate !== undefined ? (
-                <span className="tabular mb-1 text-center text-[10px] font-medium text-muted">
+                <span className="tabular mb-1 hidden text-center text-[10px] font-medium text-muted @[18rem]:block">
                   {percent(d.rate, 0)}
                 </span>
               ) : null}
@@ -77,7 +79,7 @@ export function ColumnChart({
         {data.map((d) => (
           <span
             key={d.label}
-            className="min-w-0 flex-1 truncate text-center text-[11px] text-muted"
+            className="min-w-0 flex-1 truncate text-center text-[10px] text-muted @[20rem]:text-[11px]"
           >
             {d.label}
           </span>
