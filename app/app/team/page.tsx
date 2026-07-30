@@ -13,7 +13,8 @@ import {
 } from '@/components/ui'
 import { StatTile } from '@/components/charts/stat-tile'
 import { BarList } from '@/components/charts/bar-list'
-import { FilterBar, filtersFromParams } from '@/components/filter-bar'
+import { FilterBar } from '@/components/filter-bar'
+import { filtersFromParams } from '@/lib/filters'
 import {
   getCharities,
   getFundraiserRecords,
