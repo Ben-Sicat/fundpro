@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { auth, signOut } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
 import { Sidebar, type NavGroup } from '@/components/shell/sidebar'
+import { MobileNav } from '@/components/shell/mobile-nav'
 import { ThemeToggle } from '@/components/shell/theme-toggle'
 import { getExceptions } from '@/lib/data'
 import { initials } from '@/lib/format'
@@ -79,49 +80,49 @@ export default async function AppLayout({
     <div className="app-canvas min-h-screen">
       {/* Topbar: glass, so the page washes through as it scrolls under. */}
       <header className="glass-strong sticky top-0 z-40 border-b border-line">
-        <div className="flex h-14 items-center gap-4 px-4">
-          <Link href="/app" className="flex items-center gap-2.5">
+        <div className="flex h-14 items-center gap-2 px-3 sm:gap-4 sm:px-4">
+          <Link href="/app" className="flex shrink-0 items-center gap-2.5">
             <span
-              className="grid size-7 place-items-center rounded-lg text-sm font-bold text-on-accent shadow-sm"
+              className="chamfer-sm grid size-8 place-items-center text-sm font-bold text-on-accent shadow-sm"
               style={{
                 background:
-                  'linear-gradient(135deg, var(--series-1), var(--series-3))',
+                  'linear-gradient(135deg, var(--accent), var(--series-3))',
               }}
               aria-hidden
             >
               ◈
             </span>
-            <span className="text-sm font-semibold tracking-tight text-primary">
-              FundPro
-            </span>
+            <span className="hud text-sm text-primary">FundPro</span>
           </Link>
 
-          <span className="hidden text-xs text-muted sm:inline">
+          <span className="hidden text-xs text-muted xl:inline">
             Donor Management
           </span>
 
           <div className="flex-1" />
 
           {isCharityViewer ? (
-            <span className="hidden rounded-md bg-accent-soft px-2 py-1 text-xs font-medium text-accent sm:inline">
+            <span className="chamfer-sm hidden bg-accent-soft px-2 py-1 text-xs font-medium text-accent sm:inline">
               Scoped to {actor.charityId}
             </span>
           ) : null}
 
           <ThemeToggle />
 
-          <div className="flex items-center gap-2.5 border-l border-line pl-3">
+          <div className="flex items-center gap-2.5 border-l border-line pl-2 sm:pl-3">
             <span
-              className="grid size-7 place-items-center rounded-full bg-surface-3 text-[11px] font-semibold text-secondary"
+              className="chamfer-sm grid size-8 place-items-center bg-surface-3 text-[11px] font-semibold text-secondary"
               aria-hidden
             >
               {initials(session.user.name ?? session.user.email)}
             </span>
-            <span className="hidden leading-tight sm:block">
+            {/* Identity text is the first thing to go on a narrow screen; the
+                avatar and sign-out stay. */}
+            <span className="hidden leading-tight md:block">
               <span className="block text-xs font-medium text-primary">
                 {session.user.name}
               </span>
-              <span className="block text-[10px] uppercase tracking-wide text-muted">
+              <span className="hud block text-[9px] text-muted">
                 {actor.role.replace('_', ' ')}
               </span>
             </span>
@@ -133,9 +134,14 @@ export default async function AppLayout({
             >
               <button
                 type="submit"
-                className="rounded-lg border border-line-strong bg-surface px-2 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-2 hover:text-primary"
+                title="Sign out"
+                className="chamfer-sm flex min-h-9 items-center border border-line-strong bg-surface-2 px-2.5 text-xs text-secondary transition-colors hover:bg-surface-3 hover:text-primary"
               >
-                Sign out
+                <span className="hidden sm:inline">Sign out</span>
+                <span className="sm:hidden" aria-hidden>
+                  ⏻
+                </span>
+                <span className="sr-only sm:hidden">Sign out</span>
               </button>
             </form>
           </div>
@@ -147,10 +153,14 @@ export default async function AppLayout({
           <Sidebar groups={groups} />
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-[88rem]">{children}</div>
+        {/* pb-20 on mobile clears the fixed bottom nav so the last card is not
+            hidden behind it. */}
+        <main className="min-w-0 flex-1 px-3 pb-24 pt-5 sm:px-6 sm:pb-8 sm:pt-6 lg:px-8">
+          <div className="mx-auto max-w-[92rem]">{children}</div>
         </main>
       </div>
+
+      <MobileNav groups={groups} />
     </div>
   )
 }

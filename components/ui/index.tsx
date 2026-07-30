@@ -21,19 +21,34 @@ export function Card({
   className,
   glass = false,
   padded = true,
+  /**
+   * Chamfered corners for feature panels. Off by default: a clipped corner
+   * costs readable area, so dense tables keep square-ish rounded corners.
+   */
+  feature = false,
+  /** Reserved for the headline metric and earned states. */
+  glow,
 }: {
   children: ReactNode
   className?: string
   /** Glass is for containers and chrome — never behind chart marks. */
   glass?: boolean
   padded?: boolean
+  feature?: boolean
+  glow?: 'accent' | 'gold'
 }) {
   return (
     <section
       className={cx(
-        'rounded-xl border border-line shadow-card',
+        'panel',
+        feature
+          ? 'chamfer chamfer-ring plate-gold corner-ticks'
+          : 'rounded-xl border border-line',
         glass ? 'glass glass-edge' : 'bg-surface',
-        padded && 'p-5',
+        glow === 'accent' && 'glow-accent',
+        glow === 'gold' && 'glow-gold',
+        !glow && 'shadow-card',
+        padded && 'p-4 sm:p-5',
         className,
       )}
     >
@@ -52,14 +67,21 @@ export function CardHeader({
   action?: ReactNode
 }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h2 className="text-sm font-semibold tracking-tight text-primary">
-          {title}
-        </h2>
-        {subtitle ? (
-          <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
-        ) : null}
+    <div className="panel-head -mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 border-b border-line px-4 py-3 sm:-mx-5 sm:-mt-5 sm:px-5">
+      <div className="flex min-w-0 gap-2.5">
+        <span
+          aria-hidden
+          className="mt-0.5 h-4 w-0.5 shrink-0 rounded-full"
+          style={{ background: 'var(--gold-grad)' }}
+        />
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold tracking-tight text-primary sm:text-base">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="mt-0.5 text-xs leading-snug text-muted">{subtitle}</p>
+          ) : null}
+        </div>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -74,12 +96,21 @@ export function SectionTitle({
   hint?: string
 }) {
   return (
-    <div className="mb-3 flex items-baseline gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">
+    <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h2 className="hud flex items-center gap-2 text-xs text-primary sm:text-sm">
+        <span aria-hidden style={{ color: 'var(--gold)' }}>
+          ◆
+        </span>
         {children}
       </h2>
-      {hint ? <span className="text-xs text-muted">{hint}</span> : null}
-      <div className="h-px flex-1 bg-line" />
+      {/* Hint wraps below the heading on narrow screens rather than squeezing
+          the rule to nothing. */}
+      {hint ? (
+        <span className="order-last w-full text-[11px] text-muted sm:order-none sm:w-auto">
+          {hint}
+        </span>
+      ) : null}
+      <div className="rule-notch hidden flex-1 sm:block" />
     </div>
   )
 }
@@ -97,16 +128,20 @@ export function Button({
   ...rest
 }: {
   children: ReactNode
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+  variant?: 'primary' | 'gold' | 'secondary' | 'ghost' | 'danger'
   size?: 'sm' | 'md'
   type?: 'button' | 'submit'
   className?: string
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className'>) {
+  // Primary and gold wear gradient faces with a gloss highlight — the single
+  // most recognisable game-UI component treatment.
   const variants = {
     primary:
-      'bg-accent text-on-accent hover:bg-accent-hover border-transparent shadow-sm',
+      'btn-gloss text-on-accent border-transparent shadow-md [background-image:var(--accent-grad)] hover:brightness-110',
+    gold:
+      'btn-gloss text-on-gold border-transparent shadow-md [background-image:var(--gold-grad)] hover:brightness-110',
     secondary:
-      'bg-surface text-primary hover:bg-surface-2 border-line-strong shadow-sm',
+      'bg-surface-2 text-primary hover:bg-surface-3 border-line-strong shadow-sm',
     ghost: 'bg-transparent text-secondary hover:bg-surface-2 border-transparent',
     danger:
       'bg-critical-soft text-critical-text hover:bg-critical-soft border-transparent',
@@ -115,9 +150,13 @@ export function Button({
     <button
       type={type}
       className={cx(
-        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border font-medium transition-colors',
+        'chamfer-sm inline-flex items-center justify-center gap-1.5 whitespace-nowrap border font-medium transition-colors',
         'disabled:pointer-events-none disabled:opacity-50',
-        size === 'sm' ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2 text-sm',
+        // Comfortable touch targets: >=36px tall at sm, >=40px at md, so these
+        // stay tappable on a phone.
+        size === 'sm'
+          ? 'min-h-9 px-3 py-1.5 text-xs'
+          : 'min-h-11 px-5 py-2.5 text-sm tracking-wide',
         variants[variant],
         className,
       )}
@@ -222,7 +261,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium',
+        'chamfer-sm inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[11px] font-semibold',
         TONES[tone],
       )}
     >
@@ -285,10 +324,10 @@ export function EmptyState({
 // ---------------------------------------------------------------------------
 
 export function Table({ children }: { children: ReactNode }) {
-  // Wide tables scroll inside their own container; the page never scrolls
-  // horizontally.
+  // Wide tables scroll inside their own container; the page itself never
+  // scrolls horizontally.
   return (
-    <div className="-mx-5 overflow-x-auto px-5">
+    <div className="-mx-4 overflow-x-auto px-4 sm:-mx-5 sm:px-5">
       <table className="w-full min-w-full border-collapse text-sm">
         {children}
       </table>
@@ -296,14 +335,32 @@ export function Table({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Breakpoint below which a column is hidden.
+ *
+ * Dropping low-priority columns on phones beats horizontal scrolling as the
+ * only strategy: a ten-column table on a 390px screen is unusable even when it
+ * scrolls. One markup tree, so the two layouts cannot drift apart.
+ */
+type HideBelow = 'sm' | 'md' | 'lg' | 'xl'
+
+const HIDE_CLASS: Record<HideBelow, string> = {
+  sm: 'hidden sm:table-cell',
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+  xl: 'hidden xl:table-cell',
+}
+
 export function Th({
   children,
   align = 'left',
   className,
+  hide,
 }: {
   children?: ReactNode
   align?: 'left' | 'right' | 'center'
   className?: string
+  hide?: HideBelow
 }) {
   return (
     <th
@@ -311,10 +368,11 @@ export function Th({
       className={cx(
         // Horizontal padding keeps adjacent columns from running together
         // ("₱750Semi-Annual"); the edge cells stay flush with the card.
-        'sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface px-3 pb-2 pt-1 text-xs font-medium text-muted first:pl-0 last:pr-0',
+        'sticky top-0 z-10 whitespace-nowrap border-b border-line-strong bg-surface px-3 pb-2.5 pt-1 text-xs font-semibold text-secondary first:pl-0 last:pr-0',
         align === 'right' && 'text-right',
         align === 'center' && 'text-center',
         align === 'left' && 'text-left',
+        hide && HIDE_CLASS[hide],
         className,
       )}
     >
@@ -327,10 +385,12 @@ export function Td({
   children,
   align = 'left',
   className,
+  hide,
 }: {
   children?: ReactNode
   align?: 'left' | 'right' | 'center'
   className?: string
+  hide?: HideBelow
 }) {
   return (
     <td
@@ -338,6 +398,7 @@ export function Td({
         'border-b border-line/60 px-3 py-2.5 text-secondary first:pl-0 last:pr-0',
         align === 'right' && 'text-right',
         align === 'center' && 'text-center',
+        hide && HIDE_CLASS[hide],
         className,
       )}
     >

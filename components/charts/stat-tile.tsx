@@ -1,8 +1,12 @@
 /**
  * Stat tile — the "is it even a chart?" answer for a single headline number.
  *
- * Glass surface: this is a container, not a plotting surface, so translucency
- * is safe here. The value wears a text token, never a series colour.
+ * Chamfered plate with a lit top bevel. Glass is safe here because a tile is a
+ * container, not a plotting surface. The value wears a text token, never a
+ * series colour.
+ *
+ * `accent` is for the ONE headline metric per view. If every tile glows,
+ * nothing is emphasised.
  */
 import type { ReactNode } from 'react'
 import { Delta, cx } from '@/components/ui'
@@ -18,6 +22,7 @@ export function StatTile({
   sparkColor,
   hint,
   accent = false,
+  gold = false,
 }: {
   label: string
   value: string
@@ -27,43 +32,54 @@ export function StatTile({
   spark?: number[]
   sparkColor?: string
   hint?: ReactNode
-  /** The one tile that carries the headline metric. */
   accent?: boolean
+  /** Reward framing — earnings and other "won" numbers. */
+  gold?: boolean
 }) {
   return (
     <div
       className={cx(
-        'glass glass-edge relative overflow-hidden rounded-xl border p-4 shadow-card',
-        accent ? 'border-accent/30' : 'border-line',
+        'panel chamfer chamfer-ring glass glass-edge relative overflow-hidden p-3 sm:p-4',
+        accent && 'glow-accent',
+        gold && 'glow-gold',
       )}
     >
-      <p className="text-[11px] font-medium uppercase tracking-wider text-muted">
-        {label}
-      </p>
-      <div className="mt-2 flex items-end justify-between gap-3">
+      <p className="hud text-[9px] text-muted sm:text-[10px]">{label}</p>
+
+      <div className="mt-1.5 flex items-end justify-between gap-2">
         <div className="min-w-0">
           <p className="flex items-baseline gap-1">
             <span
               className={cx(
                 'font-semibold tracking-tight text-primary',
-                accent ? 'text-3xl' : 'text-2xl',
+                // Steps down on phones so a wide figure never overflows its
+                // tile in a 2-up grid.
+                accent
+                  ? 'text-2xl sm:text-3xl'
+                  : 'text-xl sm:text-2xl',
               )}
             >
               {value}
             </span>
             {unit ? (
-              <span className="text-xs font-medium text-muted">{unit}</span>
+              <span className="text-[10px] font-medium text-muted sm:text-xs">
+                {unit}
+              </span>
             ) : null}
           </p>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2">
             {delta !== undefined ? (
               <Delta value={delta} suffix={deltaSuffix ?? 'pp'} />
             ) : null}
-            {hint ? <span className="text-[11px] text-muted">{hint}</span> : null}
+            {hint ? (
+              <span className="text-[10px] text-muted sm:text-[11px]">{hint}</span>
+            ) : null}
           </div>
         </div>
+
+        {/* The sparkline is the first thing to drop on a narrow tile. */}
         {spark ? (
-          <div className="shrink-0 pb-1">
+          <div className="hidden shrink-0 pb-1 sm:block">
             <Sparkline values={spark} color={sparkColor} />
           </div>
         ) : null}

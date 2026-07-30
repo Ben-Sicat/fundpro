@@ -18,11 +18,11 @@ import { count, date } from '@/lib/format'
 export const metadata: Metadata = { title: 'Uploads · FundPro' }
 
 const PROBLEM_LABELS: Record<string, string> = {
-  no_matching_pledge: 'No matching serial',
+  no_matching_pledge: 'Not on file',
   name_mismatch: 'Name mismatch',
   pan_mismatch: 'Card mismatch',
-  unknown_status_id: 'Unknown status ID',
-  parse_error: 'Parse error',
+  unknown_status_id: 'New bank code',
+  parse_error: 'Could not read',
 }
 
 export default async function UploadsPage() {
@@ -44,8 +44,8 @@ export default async function UploadsPage() {
             Uploads
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Drop a daily Status Report or an Apps Tracker. Rows are matched on
-            SERIAL NO and consolidated into the master.
+            Drop in the file the bank sends you. Everything is matched up and
+            filed automatically.
           </p>
         </div>
       </div>
@@ -67,8 +67,7 @@ export default async function UploadsPage() {
               Drop an .xlsx or .csv here
             </p>
             <p className="mt-1 text-xs text-muted">
-              Status Report (26 columns) or Master Apps Tracker (113 columns) —
-              the format is detected from the header signature, not the filename.
+A bank Status Report or an Apps Tracker — we work out which it is.
             </p>
           </div>
           <div className="flex gap-2">
@@ -80,19 +79,17 @@ export default async function UploadsPage() {
             </Button>
           </div>
           <p className="max-w-md text-[11px] leading-relaxed text-muted">
-            Parsing is defensive by design: <code>=DATE(2026,7,8)</code> strings,
-            comma amounts, and zero-padded MMYY expiries are all normalized. A bad
-            row becomes an exception — it never fails the batch.
+Messy spreadsheets are fine. Anything we cannot read is set aside for review instead of stopping the whole file.
           </p>
         </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Files consolidated" value={count(uploads.length)} />
+        <StatTile label="Files filed" value={count(uploads.length)} />
         <StatTile label="Rows read" value={count(totalRows)} />
         <StatTile label="Rows matched" value={count(totalMatched)} />
         <StatTile
-          label="Open exceptions"
+          label="Needs review"
           value={count(open.length)}
           hint={open.length ? 'need review' : 'all clear'}
         />
@@ -101,7 +98,7 @@ export default async function UploadsPage() {
       {/* ---- What the last consolidation changed, and what to send now ---- */}
       {latest && latestImpact ? (
         <div>
-          <SectionTitle hint="the upload names its own follow-up">
+          <SectionTitle hint="what this file changed">
             Last consolidation
           </SectionTitle>
           <Card glass>
@@ -117,8 +114,8 @@ export default async function UploadsPage() {
       {/* ---- Exceptions queue ---- */}
       {open.length > 0 ? (
         <div>
-          <SectionTitle hint="a bad row never fails the batch — it lands here">
-            Exceptions queue
+          <SectionTitle hint="set aside for someone to look at">
+            Needs a look
           </SectionTitle>
           <Card>
             <Table>
@@ -127,7 +124,7 @@ export default async function UploadsPage() {
                   <Th>Serial no</Th>
                   <Th>Problem</Th>
                   <Th>Detail</Th>
-                  <Th>Raw row</Th>
+                  <Th hide="lg">From the file</Th>
                   <Th>File</Th>
                   <Th align="right">Action</Th>
                 </tr>
@@ -147,7 +144,7 @@ export default async function UploadsPage() {
                       </Badge>
                     </Td>
                     <Td className="text-xs">{e.detail}</Td>
-                    <Td className="tabular text-xs text-muted">{e.rawSummary}</Td>
+                    <Td hide="lg" className="tabular text-xs text-muted">{e.rawSummary}</Td>
                     <Td className="text-xs">{e.filename}</Td>
                     <Td align="right">
                       <span className="flex justify-end gap-1.5">
@@ -169,7 +166,7 @@ export default async function UploadsPage() {
 
       {/* ---- History ---- */}
       <div>
-        <SectionTitle>Upload history</SectionTitle>
+        <SectionTitle>Everything uploaded so far</SectionTitle>
         <Card>
           <Table>
             <thead>

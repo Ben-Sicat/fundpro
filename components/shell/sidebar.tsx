@@ -46,7 +46,7 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cx(
-                      'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                      'chamfer-sm group relative flex items-center gap-2.5 px-2.5 py-2 text-sm transition-colors',
                       active
                         ? 'bg-accent-soft font-medium text-accent'
                         : 'text-secondary hover:bg-surface-2 hover:text-primary',
@@ -55,7 +55,7 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
                     {/* Active rail: a second, non-colour cue for selection. */}
                     <span
                       className={cx(
-                        'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full transition-all',
+                        'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 transition-all',
                         active ? 'bg-accent opacity-100' : 'opacity-0',
                       )}
                       aria-hidden
