@@ -42,6 +42,7 @@ export default async function AppLayout({
       heading: 'Consolidated data',
       items: [
         { href: '/app/pledges', label: 'Applications', glyph: '▤' },
+        { href: '/app/team', label: 'Team', glyph: '⧉' },
         ...(perms.includes('see_pii')
           ? [{ href: '/app/donors', label: 'Donors', glyph: '◎' }]
           : []),
