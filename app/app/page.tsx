@@ -6,7 +6,8 @@ import { AreaChart } from '@/components/charts/area-chart'
 import { BarList } from '@/components/charts/bar-list'
 import { Donut } from '@/components/charts/donut'
 import { ColumnChart } from '@/components/charts/column-chart'
-import { FilterBar, filtersFromParams } from '@/components/filter-bar'
+import { FilterBar } from '@/components/filter-bar'
+import { filtersFromParams } from '@/lib/filters'
 import {
   getAgeBands,
   getCharities,
@@ -85,10 +86,14 @@ export default async function OverviewPage({
             {count(kpis.signups)} donor sign-ups over the last 4 months
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm">
-            Last 90 days
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          {/* Current filters travel with you, so the wall display shows the
+              same slice that is on screen. */}
+          <Link href={{ pathname: '/showcase', query: sp }}>
+            <Button variant="secondary" size="sm">
+              ⤢ Wall display
+            </Button>
+          </Link>
           <Link href="/app/exports">
             <Button variant="primary" size="sm">
               ↧ Export

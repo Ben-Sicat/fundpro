@@ -47,8 +47,11 @@ export const authConfig = {
     authorized({ auth, request }) {
       const isLoggedIn = Boolean(auth?.user)
       const { pathname } = request.nextUrl
-      // Everything under /app requires a session.
-      if (pathname.startsWith('/app')) return isLoggedIn
+      // /app and /showcase both require a session. /showcase lives outside
+      // /app so it can drop the chrome, which means it needs naming here too —
+      // it displays the same real figures.
+      if (pathname.startsWith('/app') || pathname.startsWith('/showcase'))
+        return isLoggedIn
       return true
     },
   },
