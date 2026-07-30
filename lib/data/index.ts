@@ -33,6 +33,18 @@ import {
   computeTimeSeries,
 } from '@/lib/mock/dataset'
 import {
+  DEFAULT_PLAN,
+  clawbackCandidatesFor,
+  cutoffFor,
+  generateDraftRun,
+  netByFundraiser,
+  type ClawbackCandidate,
+  type Cutoff,
+  type FundraiserNet,
+  type PayoutLine,
+  type PayrollPledge,
+} from '@/lib/services/payroll'
+import {
   PRESETS,
   suggestionsFor,
   type ExportPreset,
@@ -372,4 +384,64 @@ export async function getFundraiserNames(): Promise<string[]> {
 
 export async function getSiteNames(): Promise<string[]> {
   return Array.from(new Set(PLEDGES.map((p) => p.siteName))).sort()
+}
+
+// ---------------------------------------------------------------------------
+// Payroll — derived, not mocked
+// ---------------------------------------------------------------------------
+
+/**
+ * A payroll run computed by lib/services/payroll.ts from the actual pledge
+ * data, rather than the canned figures in the mock dataset.
+ *
+ * This matters beyond the demo: payroll is the most error-prone thing the team
+ * does by hand, so the numbers on screen must come from the same tested rules
+ * that a real run would use. A screen showing plausible-but-invented totals is
+ * worse than no screen.
+ */
+export async function getDerivedPayrollRun(asOf = '2026-07-28'): Promise<{
+  cutoff: Cutoff
+  lines: PayoutLine[]
+  nets: FundraiserNet[]
+  clawbacks: ClawbackCandidate[]
+}> {
+  // Approved billing dates per serial, for the on_n_billings trigger.
+  const approvedBySerial = new Map<string, string[]>()
+  for (const e of BILLING_EVENTS) {
+    const cls = STATUS_CODES.find((s) => s.statusId === e.statusId)?.classification
+    if (cls !== 'approved') continue
+    const list = approvedBySerial.get(e.serialNo) ?? []
+    list.push(e.statusDate)
+    approvedBySerial.set(e.serialNo, list)
+  }
+
+  const payrollPledges: PayrollPledge[] = PLEDGES.map((p) => ({
+    serialNo: p.serialNo,
+    fundraiserName: p.fundraiserName,
+    charityCode: p.charityCode,
+    amount: p.amount,
+    currency: p.currency,
+    signupDate: p.signupDate,
+    submittedAt: p.submittedAt,
+    debitDate: p.debitDate,
+    cancellationDate: p.cancellationDate,
+    cancelled: p.cancelled,
+    approvedBillingDates: (approvedBySerial.get(p.serialNo) ?? []).sort(),
+    currentClassification: p.currentClassification,
+  }))
+
+  const cutoff = cutoffFor(asOf)
+  const plans = [DEFAULT_PLAN]
+  const lines = generateDraftRun(payrollPledges, plans, cutoff)
+
+  // Already-paid commissions, for clawback detection.
+  const paid = PLEDGES.filter((p) => p.payoutDate && p.commissionAmount).map((p) => ({
+    serialNo: p.serialNo,
+    commission: p.commissionAmount!,
+    paidOn: p.payoutDate!,
+    currency: p.currency,
+  }))
+  const clawbacks = clawbackCandidatesFor(paid, payrollPledges, plans)
+
+  return { cutoff, lines, nets: netByFundraiser(lines, clawbacks), clawbacks }
 }

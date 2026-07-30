@@ -89,7 +89,7 @@ Every report you need, ready to download. Each one shows how many rows you will 
             // org's fallback and the reason the platform is trustworthy.
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               {items.map((t) => (
-                <Card key={t.code} glass className="flex flex-col">
+                <Card key={t.code} feature glass className="flex flex-col">
                   <div className="flex items-center gap-2">
                     <span className="tabular rounded-md bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-accent">
                       {t.code}
@@ -98,10 +98,10 @@ Every report you need, ready to download. Each one shows how many rows you will 
                       {t.name}
                     </h3>
                   </div>
-                  <p className="mt-2 flex-1 text-xs leading-relaxed text-muted">
+                  <p className="mt-2 text-xs leading-relaxed text-muted">
                     {t.description}
                   </p>
-                  <p className="mt-2 text-[11px] italic text-muted">{t.when}</p>
+                  <p className="mt-1.5 flex-1 text-[11px] italic text-muted">{t.when}</p>
                   <div className="mt-4 flex items-center justify-between gap-2 border-t border-line pt-3">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="tabular text-xs text-muted">
@@ -122,16 +122,16 @@ Every report you need, ready to download. Each one shows how many rows you will 
               ))}
             </div>
           ) : (
-            <Card padded={false}>
+            <Card className="px-0 py-4 sm:py-5">
               <Table>
                 <thead>
                   <tr>
                     <Th className="pl-5">Report</Th>
-                    <Th>When you would send it</Th>
+                    <Th hide="md">When you would send it</Th>
                     <Th align="right">Rows</Th>
-                    <Th align="right">Cols</Th>
+                    <Th align="right" hide="xl">Cols</Th>
                     <Th>Data</Th>
-                    <Th>Cadence</Th>
+                    <Th hide="lg">Cadence</Th>
                     <Th align="right" className="pr-5"></Th>
                   </tr>
                 </thead>
@@ -147,13 +147,13 @@ Every report you need, ready to download. Each one shows how many rows you will 
                             <span className="block font-medium text-primary">
                               {t.name}
                             </span>
-                            <span className="block max-w-md truncate text-[11px] text-muted">
+                            <span className="block max-w-[15rem] truncate text-[11px] text-muted lg:max-w-[22rem]">
                               {t.description}
                             </span>
                           </span>
                         </span>
                       </Td>
-                      <Td className="max-w-xs text-xs">{t.when}</Td>
+                      <Td hide="md" className="max-w-[11rem] text-xs leading-snug">{t.when}</Td>
                       <Td align="right" className="tabular">
                         {t.rows !== null ? (
                           count(t.rows)
@@ -165,13 +165,13 @@ Every report you need, ready to download. Each one shows how many rows you will 
                           </span>
                         )}
                       </Td>
-                      <Td align="right" className="tabular">
+                      <Td align="right" hide="xl" className="tabular">
                         {t.columnCount}
                       </Td>
                       <Td>
                         <PiiBadge level={t.piiLevel} />
                       </Td>
-                      <Td className="text-xs">
+                      <Td hide="lg" className="text-xs">
                         {t.cadence ? (
                           <Badge tone="accent">{t.cadence}</Badge>
                         ) : (
@@ -180,7 +180,11 @@ Every report you need, ready to download. Each one shows how many rows you will 
                       </Td>
                       <Td align="right" className="pr-5">
                         <span className="flex justify-end gap-1.5">
-                          {t.cadence ? <Button size="sm">Schedule</Button> : null}
+                          {t.cadence ? (
+                            <span className="hidden lg:inline">
+                              <Button size="sm">Schedule</Button>
+                            </span>
+                          ) : null}
                           <Button size="sm" variant="primary">
                             ↧ Generate
                           </Button>

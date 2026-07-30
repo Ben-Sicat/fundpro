@@ -97,6 +97,8 @@ export interface ClawbackCandidate {
   fundraiserName: string
   /** The commission originally paid. */
   originalCommission: number
+  /** Currency of the original commission — a clawback only nets against its own. */
+  currency: string
   reason: 'cancelled' | 'failed_final' | 'unrealized'
   /** When the pledge went bad. */
   triggeredOn: string
@@ -104,8 +106,19 @@ export interface ClawbackCandidate {
   confirmed: boolean
 }
 
+/**
+ * One row per fundraiser PER CURRENCY.
+ *
+ * The agency operates in the Philippines and Malaysia and, in the real book,
+ * every fundraiser has both PHP and MYR pledges. Summing them would produce a
+ * single plausible-looking figure that means nothing — and it would be printed
+ * on a payslip. Converting would need an FX rate and a rate date, which is a
+ * business decision, not something to invent here. So the currencies stay
+ * separate and visible.
+ */
 export interface FundraiserNet {
   fundraiserName: string
+  currency: string
   pledgeCount: number
   gross: number
   clawbacks: number
@@ -288,7 +301,12 @@ export function generateDraftRun(
  * proposed only; an admin confirms before anything is netted.
  */
 export function clawbackCandidatesFor(
-  paid: readonly { serialNo: string; commission: number; paidOn: string }[],
+  paid: readonly {
+    serialNo: string
+    commission: number
+    paidOn: string
+    currency?: string
+  }[],
   pledges: readonly PayrollPledge[],
   plans: readonly CommissionPlan[],
 ): ClawbackCandidate[] {
@@ -325,6 +343,8 @@ export function clawbackCandidatesFor(
       serialNo: pledge.serialNo,
       fundraiserName: pledge.fundraiserName,
       originalCommission: payout.commission,
+      // Falls back to the pledge's currency when the payout row omits it.
+      currency: payout.currency ?? pledge.currency,
       reason,
       triggeredOn,
       confirmed: false,
@@ -343,23 +363,33 @@ export function netByFundraiser(
 ): FundraiserNet[] {
   const acc = new Map<string, FundraiserNet>()
 
-  const row = (name: string) => {
-    let r = acc.get(name)
+  // Keyed on fundraiser AND currency, so pesos and ringgit never land in the
+  // same total.
+  const row = (name: string, currency: string) => {
+    const key = `${name}\u0000${currency}`
+    let r = acc.get(key)
     if (!r) {
-      r = { fundraiserName: name, pledgeCount: 0, gross: 0, clawbacks: 0, net: 0 }
-      acc.set(name, r)
+      r = {
+        fundraiserName: name,
+        currency,
+        pledgeCount: 0,
+        gross: 0,
+        clawbacks: 0,
+        net: 0,
+      }
+      acc.set(key, r)
     }
     return r
   }
 
   for (const l of lines) {
-    const r = row(l.fundraiserName)
+    const r = row(l.fundraiserName, l.currency)
     r.pledgeCount += 1
     r.gross += l.commission
   }
   for (const c of clawbacks) {
     if (!c.confirmed) continue
-    row(c.fundraiserName).clawbacks += c.originalCommission
+    row(c.fundraiserName, c.currency).clawbacks += c.originalCommission
   }
   for (const r of acc.values()) {
     r.gross = Math.round(r.gross * 100) / 100
@@ -367,7 +397,11 @@ export function netByFundraiser(
     r.net = Math.round((r.gross - r.clawbacks) * 100) / 100
   }
 
-  return Array.from(acc.values()).sort((a, b) => b.net - a.net)
+  return Array.from(acc.values()).sort(
+    (a, b) =>
+      a.fundraiserName.localeCompare(b.fundraiserName) ||
+      a.currency.localeCompare(b.currency),
+  )
 }
 
 /**

@@ -567,7 +567,7 @@ input:-webkit-autofill:focus {
 /* Scrollbars, themed so they don't punch a bright hole in dark mode. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--axis) transparent;
+  scrollbar-color: color-mix(in oklab, var(--axis) 70%, transparent) transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
@@ -577,10 +577,13 @@ input:-webkit-autofill:focus {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: var(--axis);
+  background-color: color-mix(in oklab, var(--axis) 70%, transparent);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--axis);
 }
 
 /* Honour the OS setting: the sheen and any transition are decorative. */
