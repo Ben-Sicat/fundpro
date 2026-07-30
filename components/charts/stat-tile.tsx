@@ -39,12 +39,12 @@ export function StatTile({
   return (
     <div
       className={cx(
-        'panel chamfer chamfer-ring glass glass-edge relative overflow-hidden p-3 sm:p-4',
+        '@container panel chamfer chamfer-ring glass glass-edge relative overflow-hidden p-3 @[14rem]:p-4',
         accent && 'glow-accent',
         gold && 'glow-gold',
       )}
     >
-      <p className="hud text-[9px] text-muted sm:text-[10px]">{label}</p>
+      <p className="hud text-[9px] text-muted @[14rem]:text-[10px]">{label}</p>
 
       <div className="mt-1.5 flex items-end justify-between gap-2">
         <div className="min-w-0">
@@ -55,14 +55,14 @@ export function StatTile({
                 // Steps down on phones so a wide figure never overflows its
                 // tile in a 2-up grid.
                 accent
-                  ? 'text-2xl sm:text-3xl'
-                  : 'text-xl sm:text-2xl',
+                  ? 'text-2xl @[14rem]:text-3xl'
+                  : 'text-xl @[14rem]:text-2xl',
               )}
             >
               {value}
             </span>
             {unit ? (
-              <span className="text-[10px] font-medium text-muted sm:text-xs">
+              <span className="text-[10px] font-medium text-muted @[14rem]:text-xs">
                 {unit}
               </span>
             ) : null}
@@ -72,14 +72,16 @@ export function StatTile({
               <Delta value={delta} suffix={deltaSuffix ?? 'pp'} />
             ) : null}
             {hint ? (
-              <span className="text-[10px] text-muted sm:text-[11px]">{hint}</span>
+              <span className="text-[10px] text-muted @[14rem]:text-[11px]">{hint}</span>
             ) : null}
           </div>
         </div>
 
-        {/* The sparkline is the first thing to drop on a narrow tile. */}
+        {/* The sparkline needs real room, so it is the first thing to drop: a
+            tile narrower than this shows the figure alone rather than a
+            squashed 120px plot. */}
         {spark ? (
-          <div className="hidden shrink-0 pb-1 sm:block">
+          <div className="hidden shrink-0 pb-1 @[17rem]:block">
             <Sparkline values={spark} color={sparkColor} />
           </div>
         ) : null}

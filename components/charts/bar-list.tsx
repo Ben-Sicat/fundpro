@@ -48,7 +48,7 @@ export function BarList({
   const max = maxOverride ?? Math.max(...data.map((d) => d.value), 1)
 
   return (
-    <ol className="space-y-2.5">
+    <ol className="@container space-y-2.5">
       {data.map((d, i) => {
         const pct = (d.value / max) * 100
         const tone = d.tone ?? 'series-1'
@@ -66,7 +66,7 @@ export function BarList({
                   {d.label}
                 </span>
                 {d.sublabel ? (
-                  <span className="hidden truncate text-muted sm:inline">
+                  <span className="hidden truncate text-muted @[26rem]:inline">
                     {d.sublabel}
                   </span>
                 ) : null}
