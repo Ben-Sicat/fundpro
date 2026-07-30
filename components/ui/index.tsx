@@ -61,13 +61,22 @@ export function CardHeader({
   title,
   subtitle,
   action,
+  /** False when the parent Card uses padded={false}. */
+  bleed = true,
 }: {
   title: string
   subtitle?: string
   action?: ReactNode
+  bleed?: boolean
 }) {
   return (
-    <div className="panel-head -mx-4 -mt-4 mb-4 flex items-start justify-between gap-3 border-b border-line px-4 py-3 sm:-mx-5 sm:-mt-5 sm:px-5">
+    <div
+      className={cx(
+        'panel-head flex items-start justify-between gap-3 border-b border-line px-4 py-3 sm:px-5',
+        // Bleed to the panel edge only when the panel has padding to cancel.
+        bleed && '-mx-4 -mt-4 mb-4 sm:-mx-5 sm:-mt-5',
+      )}
+    >
       <div className="flex min-w-0 gap-2.5">
         <span
           aria-hidden
@@ -150,7 +159,7 @@ export function Button({
     <button
       type={type}
       className={cx(
-        'chamfer-sm inline-flex items-center justify-center gap-1.5 whitespace-nowrap border font-medium transition-colors',
+        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-semibold transition-colors',
         'disabled:pointer-events-none disabled:opacity-50',
         // Comfortable touch targets: >=36px tall at sm, >=40px at md, so these
         // stay tappable on a phone.
@@ -261,7 +270,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        'chamfer-sm inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-1 text-[11px] font-semibold',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold',
         TONES[tone],
       )}
     >

@@ -12,19 +12,26 @@ import {
 } from '@/components/ui'
 import { StatTile } from '@/components/charts/stat-tile'
 import { BarList } from '@/components/charts/bar-list'
-import { getFundraiserPerformance, getPayrollRuns } from '@/lib/data'
-import { count, date, money, moneyCompact, percent } from '@/lib/format'
+import {
+  getDerivedPayrollRun,
+  getFundraiserPerformance,
+  getPayrollRuns,
+} from '@/lib/data'
+import { count, date, money, percent } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Payroll · FundPro' }
 
 export default async function PayrollPage() {
-  const [runs, performance] = await Promise.all([
+  const [runs, performance, derived] = await Promise.all([
     getPayrollRuns(),
     getFundraiserPerformance(),
+    // Computed by lib/services/payroll.ts from the pledge data, so what is on
+    // screen comes from the same tested rules a real run would use.
+    getDerivedPayrollRun(),
   ])
 
-  const draft = runs.find((r) => r.status === 'draft')
   const paid = runs.filter((r) => r.status === 'paid')
+  const unconfirmed = derived.clawbacks.filter((c) => !c.confirmed)
 
   return (
     <div className="space-y-6">
@@ -34,8 +41,8 @@ export default async function PayrollPage() {
             Payroll
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Semi-monthly cutoffs: 1st–15th pays in the ~15th run, 16th–EOM in the
-            ~30th. Commissions are drafted, reviewed, then locked.
+            Paid twice a month. Everything is worked out for you, then you
+            review and approve it.
           </p>
         </div>
         <Button variant="primary" size="sm">
@@ -43,47 +50,94 @@ export default async function PayrollPage() {
         </Button>
       </div>
 
-      {/* Both business rules below are still unconfirmed by the client, so they
-          are configuration rather than code. Saying so on the page keeps the
-          assumption visible instead of buried. */}
+      {/* The multiplier is genuinely unknown, so the page says so rather than
+          presenting a derived figure as settled. */}
       <div className="rounded-lg border border-line bg-warning-soft px-4 py-3">
         <p className="text-xs leading-relaxed text-warning-text">
-          <strong>⚠ Two rules await client confirmation.</strong> Eligibility is
-          set to <code>on_first_approval</code> and commission to a{' '}
-          <code>×2.5</code> multiplier of pledge amount — both inferred from the
-          payroll reference file, both editable in Settings. The sample files show
-          multipliers of ×1, ×2.5, ×3 and ×4, and what drives the difference is
-          not yet known.
+          <strong>⚠ One number to confirm.</strong> Commission is set to ×3 of
+          the pledge amount — the most common value in your own payroll sheets.
+          They also show ×0.5, ×2, ×2.5 and ×4, and we could not work out what
+          decides which. Confirm that with the team and it is a one-field change
+          in Settings.
         </p>
       </div>
 
-      {draft ? (
-        <Card glass>
-          <CardHeader
-            title="Current draft run"
-            subtitle={`Cutoff ${date(draft.cutoffStart)} → ${date(draft.cutoffEnd)} · pays ${date(draft.runDate)}`}
-            action={
-              <span className="flex gap-2">
-                <Button size="sm">Review lines</Button>
-                <Button size="sm" variant="primary">
-                  Approve &amp; lock
-                </Button>
-              </span>
-            }
+      {/* ---- Draft run, derived ---- */}
+      <Card feature glow="accent">
+        <CardHeader
+          title="Draft run"
+          subtitle={`${derived.cutoff.label} · pays ${date(derived.cutoff.runDate)}`}
+          action={
+            <span className="flex gap-2">
+              <Button size="sm">Review lines</Button>
+              <Button size="sm" variant="gold">
+                Approve &amp; lock
+              </Button>
+            </span>
+          }
+        />
+
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          <StatTile label="Fundraisers" value={count(new Set(derived.lines.map((l) => l.fundraiserName)).size)} />
+          <StatTile label="Donors paid on" value={count(derived.lines.length)} />
+          <StatTile
+            label="To review"
+            value={count(unconfirmed.length)}
+            hint={unconfirmed.length ? 'money to reclaim' : 'nothing to reclaim'}
           />
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatTile label="Fundraisers" value={count(draft.fundraiserCount)} />
-            <StatTile label="Pledges" value={count(draft.pledgeCount)} />
-            <StatTile label="Gross" value={moneyCompact(draft.grossCommission)} />
-            <StatTile
-              label="Clawbacks"
-              value={`−${moneyCompact(draft.clawbacks)}`}
-              hint="cancelled or unrealized"
-            />
-            <StatTile accent label="Net payable" value={moneyCompact(draft.netPayable)} />
-          </div>
-        </Card>
-      ) : null}
+          <StatTile
+            gold
+            label="Total to pay"
+            value={derived.nets
+              .filter((n) => n.currency === 'PHP')
+              .reduce((s, n) => s + n.net, 0)
+              .toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+            unit="₱"
+          />
+        </div>
+
+        {/* Per fundraiser AND per currency. The agency runs in the Philippines
+            and Malaysia, and adding pesos to ringgit would produce a
+            plausible-looking figure that means nothing. */}
+        <div className="mt-4">
+          <Table>
+            <thead>
+              <tr>
+                <Th>Fundraiser</Th>
+                <Th>Currency</Th>
+                <Th align="right">Donors</Th>
+                <Th align="right">Earned</Th>
+                <Th align="right">Reclaimed</Th>
+                <Th align="right">Take home</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {derived.nets.map((n) => (
+                <Tr key={`${n.fundraiserName}-${n.currency}`}>
+                  <Td className="font-medium text-primary">{n.fundraiserName}</Td>
+                  <Td>
+                    <Badge tone={n.currency === 'PHP' ? 'neutral' : 'accent'}>
+                      {n.currency}
+                    </Badge>
+                  </Td>
+                  <Td align="right" className="tabular">
+                    {n.pledgeCount}
+                  </Td>
+                  <Td align="right" className="tabular">
+                    {money(n.gross, n.currency)}
+                  </Td>
+                  <Td align="right" className="tabular text-critical-text">
+                    {n.clawbacks > 0 ? `−${money(n.clawbacks, n.currency)}` : '—'}
+                  </Td>
+                  <Td align="right" className="tabular font-semibold text-primary">
+                    {money(n.net, n.currency)}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
@@ -132,35 +186,35 @@ export default async function PayrollPage() {
       </div>
 
       <div>
-        <SectionTitle>Run history</SectionTitle>
+        <SectionTitle>Past pay runs</SectionTitle>
         <Card>
           <Table>
             <thead>
               <tr>
                 <Th>Pay date</Th>
-                <Th>Cutoff</Th>
-                <Th align="right">Fundraisers</Th>
-                <Th align="right">Pledges</Th>
+                <Th hide="lg">Period</Th>
+                <Th align="right" hide="md">Fundraisers</Th>
+                <Th align="right" hide="sm">Donors</Th>
                 <Th align="right">Gross</Th>
                 <Th align="right">Clawbacks</Th>
-                <Th align="right">Net payable</Th>
+                <Th align="right">Take home</Th>
                 <Th>Status</Th>
                 <Th align="right"></Th>
               </tr>
             </thead>
             <tbody>
-              {[...(draft ? [draft] : []), ...paid].map((r) => (
+              {paid.map((r) => (
                 <Tr key={r.id}>
                   <Td className="tabular whitespace-nowrap font-medium text-primary">
                     {date(r.runDate)}
                   </Td>
-                  <Td className="tabular whitespace-nowrap text-xs">
+                  <Td hide="lg" className="tabular whitespace-nowrap text-xs">
                     {date(r.cutoffStart)} → {date(r.cutoffEnd)}
                   </Td>
-                  <Td align="right" className="tabular">
+                  <Td align="right" hide="md" className="tabular">
                     {r.fundraiserCount}
                   </Td>
-                  <Td align="right" className="tabular">
+                  <Td align="right" hide="sm" className="tabular">
                     {count(r.pledgeCount)}
                   </Td>
                   <Td align="right" className="tabular">

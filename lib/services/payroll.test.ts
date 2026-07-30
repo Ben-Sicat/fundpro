@@ -362,12 +362,17 @@ describe('netByFundraiser', () => {
         serialNo: 'A',
         fundraiserName: 'Grace Tolentino',
         originalCommission: 1800,
+        currency: 'PHP',
         reason: 'cancelled' as const,
         triggeredOn: '2026-07-25',
         confirmed: false,
       },
     ]
-    expect(netByFundraiser(lines, unconfirmed)[0].clawbacks).toBe(0)
+    expect(
+      netByFundraiser(lines, unconfirmed).find(
+        (n) => n.fundraiserName === 'Grace Tolentino',
+      )!.clawbacks,
+    ).toBe(0)
 
     const confirmed = [{ ...unconfirmed[0], confirmed: true }]
     const grace = netByFundraiser(lines, confirmed).find(
@@ -385,6 +390,7 @@ describe('netByFundraiser', () => {
         serialNo: 'A',
         fundraiserName: 'Rico Salvador',
         originalCommission: 9000,
+        currency: 'PHP',
         reason: 'cancelled' as const,
         triggeredOn: '2026-07-25',
         confirmed: true,
@@ -395,5 +401,62 @@ describe('netByFundraiser', () => {
     )!
     expect(rico.gross).toBe(1500)
     expect(rico.net).toBe(-7500)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Currency safety — the operation spans PH and Malaysia
+// ---------------------------------------------------------------------------
+
+describe('mixed currencies', () => {
+  it('never adds PHP and MYR into one total', () => {
+    // Every fundraiser in the real book works both PH and MY sites, so this is
+    // the normal case, not an edge case. Summing across currencies without an
+    // FX rate produces a number that means nothing — and it would look
+    // plausible on a payslip.
+    const lines = generateDraftRun(
+      [
+        pledge({ serialNo: 'PH1', amount: 600, currency: 'PHP', debitDate: '2026-07-20' }),
+        pledge({ serialNo: 'MY1', amount: 100, currency: 'MYR', debitDate: '2026-07-21' }),
+      ],
+      [DEFAULT_PLAN],
+      cutoffFor('2026-07-20'),
+    )
+    const nets = netByFundraiser(lines, [])
+
+    // One row per fundraiser PER CURRENCY.
+    expect(nets).toHaveLength(2)
+    const php = nets.find((n) => n.currency === 'PHP')!
+    const myr = nets.find((n) => n.currency === 'MYR')!
+    expect(php.gross).toBe(1800) // 600 x 3
+    expect(myr.gross).toBe(300) // 100 x 3
+    // The bug this guards: a single 2100 row, mixing pesos and ringgit.
+    expect(nets.some((n) => n.gross === 2100)).toBe(false)
+  })
+
+  it('nets a clawback only against its own currency', () => {
+    const lines = generateDraftRun(
+      [
+        pledge({ serialNo: 'PH1', amount: 600, currency: 'PHP', debitDate: '2026-07-20' }),
+        pledge({ serialNo: 'MY1', amount: 100, currency: 'MYR', debitDate: '2026-07-21' }),
+      ],
+      [DEFAULT_PLAN],
+      cutoffFor('2026-07-20'),
+    )
+    const clawback = [
+      {
+        serialNo: 'MY1',
+        fundraiserName: 'Grace Tolentino',
+        originalCommission: 300,
+        currency: 'MYR',
+        reason: 'cancelled' as const,
+        triggeredOn: '2026-07-25',
+        confirmed: true,
+      },
+    ]
+    const nets = netByFundraiser(lines, clawback)
+    expect(nets.find((n) => n.currency === 'MYR')!.net).toBe(0)
+    // The peso row must be untouched by a ringgit clawback.
+    expect(nets.find((n) => n.currency === 'PHP')!.net).toBe(1800)
   })
 })
