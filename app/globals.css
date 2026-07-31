@@ -44,7 +44,7 @@
   /* -- ink -------------------------------------------------------------- */
   --text-primary: #f4f6ff;
   --text-secondary: #b3bcdb;
-  --text-muted: #8089ad;
+  --text-muted: #98a2c4;
   --text-inverse: #0b0e1c;
 
   /* -- lines ------------------------------------------------------------ */
@@ -539,7 +539,7 @@ input:-webkit-autofill:focus {
    only; never on data, which must stay quick to read. */
 .hud {
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.045em;
   font-weight: 700;
 }
 

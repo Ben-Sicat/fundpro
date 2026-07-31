@@ -76,12 +76,13 @@ export default async function TeamPage({
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <StatTile label="Fundraisers" value={count(active.length)} hint={`${fundraisers.length - active.length} inactive`} />
-        <StatTile label="Leaders" value={count(leaders.length)} />
-        <StatTile label="Sign-ups" value={count(totalSignups)} />
+        <StatTile label="Leaders" value={count(leaders.length)} hint="running the teams" />
+        <StatTile label="Sign-ups" value={count(totalSignups)} hint="donors recruited" />
         <StatTile
           accent
           label="Donors that stick"
           value={percent(totalSignups ? totalRealized / totalSignups : 0)}
+          hint="team average"
         />
       </div>
 

@@ -78,21 +78,22 @@ export default async function PayrollPage() {
         />
 
         <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-          <StatTile label="Fundraisers" value={count(new Set(derived.lines.map((l) => l.fundraiserName)).size)} />
-          <StatTile label="Donors paid on" value={count(derived.lines.length)} />
+          <StatTile label="Fundraisers" value={count(new Set(derived.lines.map((l) => l.fundraiserName)).size)} hint="earning this cutoff" />
+          <StatTile label="Donors being paid for" value={count(derived.lines.length)} hint="billed in this period" />
           <StatTile
-            label="To review"
+            label="Clawbacks to review"
             value={count(unconfirmed.length)}
             hint={unconfirmed.length ? 'money to reclaim' : 'nothing to reclaim'}
           />
           <StatTile
             gold
-            label="Total to pay"
+            label="Total to pay (PHP)"
             value={derived.nets
               .filter((n) => n.currency === 'PHP')
               .reduce((s, n) => s + n.net, 0)
               .toLocaleString('en-PH', { maximumFractionDigits: 0 })}
             unit="₱"
+            hint="ringgit listed per person below"
           />
         </div>
 
@@ -152,7 +153,7 @@ export default async function PayrollPage() {
               label: f.name,
               sublabel: f.leaderName,
               value: Math.round(f.grossCommission),
-              note: `${percent(f.realizationRate, 0)} realized`,
+              note: `${percent(f.realizationRate, 0)} stick`,
             }))}
             format="moneyCompact"
           />

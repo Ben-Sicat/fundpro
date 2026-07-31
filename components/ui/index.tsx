@@ -88,7 +88,7 @@ export function CardHeader({
             {title}
           </h2>
           {subtitle ? (
-            <p className="mt-0.5 text-xs leading-snug text-muted">{subtitle}</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-secondary">{subtitle}</p>
           ) : null}
         </div>
       </div>
@@ -115,7 +115,7 @@ export function SectionTitle({
       {/* Hint wraps below the heading on narrow screens rather than squeezing
           the rule to nothing. */}
       {hint ? (
-        <span className="order-last w-full text-[11px] text-muted sm:order-none sm:w-auto">
+        <span className="order-last w-full text-xs text-secondary sm:order-none sm:w-auto">
           {hint}
         </span>
       ) : null}

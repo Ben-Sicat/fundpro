@@ -52,7 +52,7 @@ export function UploadImpactPanel({
 
       {impact.suggested.length > 0 ? (
         <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
             Exports this just made relevant
           </p>
           <ul className="space-y-1.5">
@@ -72,7 +72,7 @@ export function UploadImpactPanel({
                     <span className="block truncate text-xs font-medium text-primary">
                       {s.name}
                     </span>
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-xs text-muted">
                       {s.reason}
                     </span>
                   </span>

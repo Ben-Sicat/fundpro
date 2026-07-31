@@ -75,14 +75,15 @@ Every donor sign-up, with the latest word from the bank.
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <StatTile label="Matching" value={count(rows.length)} hint="applications" />
+        <StatTile label="Applications" value={count(rows.length)} hint="match your filters" />
         <StatTile
-          label="Realization"
-          value={percent(kpis.realizationRate)}
           accent
+          label="Donors that stick"
+          value={percent(kpis.realizationRate)}
+          hint="of those sent to the bank"
         />
-        <StatTile label="Pledged value" value={moneyCompact(kpis.pledgedValue)} unit="/mo" />
-        <StatTile label="Verified" value={percent(kpis.verifiedPct, 0)} hint="phoned" />
+        <StatTile label="Monthly giving" value={moneyCompact(kpis.pledgedValue)} unit="/mo" hint="all shown donors combined" />
+        <StatTile label="Phone-verified" value={percent(kpis.verifiedPct, 0)} hint="confirmed real by a call" />
       </div>
 
       {/* Filters in one row above the table. GET form so every filtered view is
@@ -103,7 +104,7 @@ Every donor sign-up, with the latest word from the bank.
 
           <div>
             <label htmlFor="charity" className="mb-1.5 block text-xs font-medium text-secondary">
-              Charity
+              Client
             </label>
             <Select id="charity" name="charity" defaultValue={sp.charity ?? ''}>
               <option value="">All</option>
@@ -121,11 +122,11 @@ Every donor sign-up, with the latest word from the bank.
             </label>
             <Select id="status" name="status" defaultValue={sp.status ?? ''}>
               <option value="">Any</option>
-              <option value="realized">Realized</option>
-              <option value="retrying">Retrying</option>
-              <option value="failed">Failed final</option>
+              <option value="realized">Started paying</option>
+              <option value="retrying">Payment retrying</option>
+              <option value="failed">Failed for good</option>
               <option value="cancelled">Cancelled</option>
-              <option value="pending">Not submitted</option>
+              <option value="pending">Not yet sent to bank</option>
             </Select>
           </div>
 
@@ -147,7 +148,7 @@ Every donor sign-up, with the latest word from the bank.
               a sign-up vs a debit basis. */}
           <div>
             <label htmlFor="basis" className="mb-1.5 block text-xs font-medium text-secondary">
-              Date basis
+              Dates based on
             </label>
             <Select id="basis" name="basis" defaultValue={filters.basis}>
               {Object.entries(DATE_BASIS_LABELS).map(([k, label]) => (
@@ -201,9 +202,9 @@ Every donor sign-up, with the latest word from the bank.
                   <Th hide="lg">Charity</Th>
                   <Th hide="md">Fundraiser</Th>
                   <Th align="right">Amount</Th>
-                  <Th hide="xl">Freq</Th>
-                  <Th hide="sm">Sign-up</Th>
-                  <Th hide="lg">Debit</Th>
+                  <Th hide="xl">How often</Th>
+                  <Th hide="sm">Signed up</Th>
+                  <Th hide="lg">First paid</Th>
                   <Th>Status</Th>
                   <Th align="center" hide="xl">Verified</Th>
                 </tr>

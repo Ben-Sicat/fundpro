@@ -44,7 +44,7 @@ export function StatTile({
         gold && 'glow-gold',
       )}
     >
-      <p className="hud text-[9px] text-muted @[14rem]:text-[10px]">{label}</p>
+      <p className="hud text-[11px] text-secondary @[14rem]:text-xs">{label}</p>
 
       <div className="mt-1.5 flex items-end justify-between gap-2">
         <div className="min-w-0">
@@ -62,7 +62,7 @@ export function StatTile({
               {value}
             </span>
             {unit ? (
-              <span className="text-[10px] font-medium text-muted @[14rem]:text-xs">
+              <span className="text-[11px] font-medium text-secondary @[14rem]:text-xs">
                 {unit}
               </span>
             ) : null}
@@ -72,7 +72,7 @@ export function StatTile({
               <Delta value={delta} suffix={deltaSuffix ?? 'pp'} />
             ) : null}
             {hint ? (
-              <span className="text-[10px] text-muted @[14rem]:text-[11px]">{hint}</span>
+              <span className="text-[11px] leading-snug text-secondary @[14rem]:text-xs">{hint}</span>
             ) : null}
           </div>
         </div>

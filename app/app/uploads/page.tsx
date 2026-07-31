@@ -85,9 +85,9 @@ Messy spreadsheets are fine. Anything we cannot read is set aside for review ins
       </Card>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Files filed" value={count(uploads.length)} />
-        <StatTile label="Rows read" value={count(totalRows)} />
-        <StatTile label="Rows matched" value={count(totalMatched)} />
+        <StatTile label="Files filed" value={count(uploads.length)} hint="uploads consolidated" />
+        <StatTile label="Rows read" value={count(totalRows)} hint="across every file" />
+        <StatTile label="Rows matched" value={count(totalMatched)} hint="linked to a donor" />
         <StatTile
           label="Needs review"
           value={count(open.length)}

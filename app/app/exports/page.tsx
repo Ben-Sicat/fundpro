@@ -101,7 +101,7 @@ Every report you need, ready to download. Each one shows how many rows you will 
                   <p className="mt-2 text-xs leading-relaxed text-muted">
                     {t.description}
                   </p>
-                  <p className="mt-1.5 flex-1 text-[11px] italic text-muted">{t.when}</p>
+                  <p className="mt-1.5 flex-1 text-xs italic text-secondary">{t.when}</p>
                   <div className="mt-4 flex items-center justify-between gap-2 border-t border-line pt-3">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="tabular text-xs text-muted">
