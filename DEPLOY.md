@@ -22,6 +22,11 @@ from `lib/mock/users.ts`.
 At <https://vercel.com/new>, import **`Ben-Sicat/fundpro`**. Framework detection
 should say Next.js; leave the build settings alone.
 
+> **⚠ Monorepo (2026-07-31):** the Next.js app moved from the repo root to
+> **`frontend/`**. In Vercel go to **Settings → General → Root Directory** and
+> set it to `frontend`, or every deploy after the restructure commit will fail
+> with "no Next.js project detected".
+
 ## 2. Environment variables
 
 Add these under **Settings → Environment Variables** (Production + Preview).

@@ -51,41 +51,56 @@ Sample files: /docs/samples/
 - PH Data Privacy Act (RA 10173) applies. No PII in logs, error
   messages, or seed data committed to git.
 
-## Architecture (revised 2026-07-27)
+## Architecture (revised 2026-07-31)
 The original single-Next.js-app plan changed. Current direction:
-- **Python service** does the Excel preprocessing/consolidation and exposes an
-  HTTP API. It owns parsing, matching on SERIAL NO, and file generation.
-- **Next.js app** is the UI. It must not re-implement parsing or consolidation.
-- **Supabase** is the database (Postgres, so /db/schema.ts still applies and can
-  be pushed to it — the schema work is not wasted).
+- **`/backend`** — Python service (FastAPI) that does the Excel
+  preprocessing/consolidation and exposes an HTTP API. It owns parsing,
+  matching on SERIAL NO, and file generation. Build guide:
+  /docs/BACKEND_PROMPT.md.
+- **`/frontend`** — the Next.js UI. It must not re-implement parsing or
+  consolidation.
+- **Supabase** is the database (Postgres, so /frontend/db/schema.ts still
+  applies and can be pushed to it — the schema work is not wasted). Drizzle
+  (in the frontend workspace) stays the ONLY schema owner; Python never
+  migrates.
 
 **The UI is currently mock-driven and needs no database at all.**
-- All page data comes from `/lib/data/index.ts` — the ONLY seam. Every function
-  is already async; swapping a body for a `fetch` to the Python API changes no
-  component. Validate responses with Zod there: the API is untrusted input.
-- Mock dataset: `/lib/mock/dataset.ts` (deterministic seeded PRNG + fixed TODAY,
-  so no hydration mismatches and screenshots are repeatable).
-- Auth: `/lib/mock/users.ts`, password `demo1234`. Delete when Supabase auth
-  lands.
+- All page data comes from `/frontend/lib/data/index.ts` — the ONLY seam.
+  Every function is already async; swapping a body for a `fetch` to the Python
+  API changes no component. Validate responses with Zod there: the API is
+  untrusted input.
+- Mock dataset: `/frontend/lib/mock/dataset.ts` (deterministic seeded PRNG +
+  fixed TODAY, so no hydration mismatches and screenshots are repeatable).
+- Auth: `/frontend/lib/mock/users.ts`, password `demo1234`. Delete when
+  Supabase auth lands.
 
 ## Stack
+Frontend (`/frontend`):
 - Next.js 15 (App Router, TypeScript strict)
-- PostgreSQL 16 + Drizzle ORM (/db/schema.ts, drizzle-kit migrations)
-- Dev DB: local Docker (port 5433) — currently unused by the UI.
-  Prod: Supabase.
+- PostgreSQL 16 + Drizzle ORM (/frontend/db/schema.ts, drizzle-kit migrations)
+- Dev DB: local Docker (port 5433, root docker-compose.yml) — currently unused
+  by the UI. Prod: Supabase.
 - Auth.js v5 (credentials), role carried in session
 - Tailwind CSS + shadcn/ui; Recharts for charts
 - exceljs for xlsx parse/generate; Zod at all API boundaries
-- Jobs behind /lib/jobs/scheduler.ts interface with two drivers:
+- Jobs behind /frontend/lib/jobs/scheduler.ts interface with two drivers:
   vercel-cron (default) and pg-boss (VPS). Never call a driver directly.
 - Vitest (unit), Playwright (e2e for critical flows only)
+
+Backend (`/backend`):
+- Python 3.12+, FastAPI, Pydantic v2 (camelCase aliases to match
+  /frontend/lib/types.ts), pydantic-settings for env
+- psycopg 3 direct to Postgres (Supabase session pooler in prod) — no
+  PostgREST/supabase-py for consolidation
+- openpyxl (read_only streaming) for parsing and generation
+- pytest + ruff; deps managed with uv (pyproject.toml + uv.lock)
 
 ## Conventions
 - Server Actions for mutations; route handlers only for file
   upload/download and cron endpoints (cron endpoints auth via secret).
 - Money: numeric/decimal only, never floats. Currency PHP default.
 - Dates: date/timestamptz stored UTC, displayed Asia/Manila.
-- Domain logic = pure functions in /lib/services/* with unit tests;
+- Domain logic = pure functions in /frontend/lib/services/* with unit tests;
   components contain no business rules.
 - Every table has created_at; mutable tables add updated_at.
 - Excel parsing is defensive: handle literal "=DATE(2026,7,8)" strings,
@@ -97,7 +112,7 @@ The original single-Next.js-app plan changed. Current direction:
 
 ## UI conventions
 - **Design tokens only.** Everything is CSS custom properties in
-  `app/globals.css` (light + dark declared under BOTH `prefers-color-scheme`
+  `frontend/app/globals.css` (light + dark declared under BOTH `prefers-color-scheme`
   and `[data-theme]`). Never write a raw hex in a component.
 - **Every form control sets its own `color` AND `background-color`.** Inheriting
   `color` from an ancestor is what made the original inputs render
@@ -115,8 +130,12 @@ The original single-Next.js-app plan changed. Current direction:
   page.
 
 ## Commands
-pnpm dev · pnpm build · pnpm test · pnpm test:e2e ·
-pnpm db:migrate · pnpm db:seed · pnpm migrate:legacy
+Frontend (run in `frontend/`): pnpm dev · pnpm build · pnpm test ·
+pnpm test:e2e · pnpm db:migrate · pnpm db:push · pnpm db:seed ·
+pnpm migrate:legacy
+
+Backend (run in `backend/`): uv sync · uv run pytest · uv run ruff check .
+· uv run uvicorn app.asgi:app --reload --port 8000
 
 ---
 
