@@ -60,17 +60,17 @@ and is tested — see §3.
 
 ## 3. Schema: already built — do not redesign it
 
-`/db/schema.ts` (Drizzle) is the complete, tested schema: 32 tables, 10 CHECK
+`frontend/db/schema.ts` (Drizzle) is the complete, tested schema: 32 tables, 10 CHECK
 constraints, the `billing_events` unique natural key, masked-PAN-only payment
 columns. It pushes to Supabase unchanged because Supabase is Postgres:
 
 ```
-DATABASE_URL=<supabase session-pooler url> pnpm db:push
+cd frontend && DATABASE_URL=<supabase session-pooler url> pnpm db:push
 ```
 
 **Drizzle stays the schema owner.** Python treats the schema as a read/write
 contract but never migrates it — one migration system, not two fighting. If a
-column is genuinely missing, change `db/schema.ts`, push, then use it.
+column is genuinely missing, change `frontend/db/schema.ts`, push, then use it.
 
 Load-bearing invariants (enforced in DB, respect them in code):
 
@@ -86,8 +86,8 @@ Load-bearing invariants (enforced in DB, respect them in code):
 
 ## 4. The API contract — the UI already defines it
 
-The frontend reads exclusively through **`lib/data/index.ts`** (every function
-async on purpose) and its response types are **`lib/types.ts`**. Your JSON
+The frontend reads exclusively through **`frontend/lib/data/index.ts`** (every function
+async on purpose) and its response types are **`frontend/lib/types.ts`**. Your JSON
 field names must match those TypeScript interfaces exactly (camelCase:
 `serialNo`, `debitDate`, `currentClassification`, …). The final integration
 step replaces each mock body with `fetch` + Zod — no component changes.
@@ -143,7 +143,7 @@ Full evidence: `docs/FINDINGS.md` §2.
 
 ## 6. Payroll — port, don't reinvent
 
-`lib/services/payroll.ts` + `lib/services/payroll.test.ts` (46 tests) encode
+`frontend/lib/services/payroll.ts` + `frontend/lib/services/payroll.test.ts` (46 tests) encode
 rules that were **measured from the client's own payroll workbook**
 (FINDINGS §3.7). Port both the functions and every test case to Python:
 
@@ -201,15 +201,15 @@ upload impact summary, audit log — one transaction per batch. DoD: re-uploadin
 the same file changes nothing; every exception path has a test.
 
 **Phase 3 — Exports.** A1/A2/A3 legacy-exact plus B/C/D reports from
-`lib/exports/presets.ts` definitions. DoD: round-trip header diff against the
+`frontend/lib/exports/presets.ts` definitions. DoD: round-trip header diff against the
 local sample is empty; row counts match the preset count rules.
 
 **Phase 4 — API + payroll.** All §4 endpoints; port §6 payroll with its full
-test suite. DoD: every endpoint returns `lib/types.ts`-shaped JSON validated in
+test suite. DoD: every endpoint returns `frontend/lib/types.ts`-shaped JSON validated in
 tests; 46 payroll cases green in Python.
 
 **Phase 5 — Swap the seam** (frontend session, this repo): replace each
-`lib/data/index.ts` body with `fetch(PREPROCESS_API_URL)` + Zod schema parse;
+`frontend/lib/data/index.ts` body with `fetch(PREPROCESS_API_URL)` + Zod schema parse;
 add `loading.tsx`/Suspense boundaries now that latency is real. DoD: UI renders
 identically against the live API; charity_viewer scoping enforced server-side.
 

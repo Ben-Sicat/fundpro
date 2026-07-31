@@ -21,12 +21,20 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 
+# ---- Python (backend/) ----
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
 # ---- Test / coverage ----
 coverage/
 playwright-report/
 test-results/
-/blob-report/
-/playwright/.cache/
+blob-report/
+playwright/.cache/
 
 # ---- Misc ----
 .DS_Store
