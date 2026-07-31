@@ -1,0 +1,35 @@
+[project]
+name = "fundpro-backend"
+version = "0.1.0"
+description = "FundPro preprocessing service: xlsx parsing, consolidation, legacy exports, payroll derivation"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116,<0.117",
+    "uvicorn[standard]>=0.35,<0.36",
+    "psycopg[binary]>=3.2,<3.3",
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.10,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4,<9",
+    "httpx>=0.28,<0.29",
+    "ruff>=0.12,<0.13",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "S", "SIM", "RUF"]
+ignore = [
+    "S101", # assert is how pytest works
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"] # hard-coded test credentials are the point
