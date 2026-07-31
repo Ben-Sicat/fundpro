@@ -93,7 +93,7 @@ export function AreaChart({
         {ticks.map((t) => (
           <span
             key={t.v}
-            className="tabular absolute right-2 -translate-y-1/2 whitespace-nowrap text-[10px] text-muted"
+            className="tabular absolute right-2 -translate-y-1/2 whitespace-nowrap text-[11px] text-muted"
             style={{ top: `${t.topPct}%` }}
           >
             {label(t.v)}
@@ -178,7 +178,7 @@ export function AreaChart({
           return (
             <span
               key={d.date}
-              className="absolute top-1 whitespace-nowrap text-[10px] text-muted"
+              className="absolute top-1 whitespace-nowrap text-[11px] text-muted"
               style={{
                 left: `${px(i)}%`,
                 transform: isFirst

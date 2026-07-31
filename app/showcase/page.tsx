@@ -151,7 +151,7 @@ export default async function ShowcasePage({
                 value: d.value,
                 color: SPLIT_COLORS[d.classification] ?? 'var(--series-1)',
               }))}
-              centreLabel="started paying"
+              centreLabel="keep paying"
               centreValue={percent(kpis.realizationRate, 0)}
               maxSize={150}
             />

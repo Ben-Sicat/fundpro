@@ -118,22 +118,22 @@ export default async function OverviewPage({
           label="Donors that stick"
           value={percent(kpis.realizationRate)}
           delta={kpis.realizationDelta}
-          hint="vs prior period"
+          hint="of sign-ups keep paying"
           spark={series.map((p) => (p.signups ? p.realized / p.signups : 0))}
         />
         <StatTile
           label="Sign-ups"
           value={count(kpis.signups)}
-          hint={`${count(submitted)} submitted`}
+          hint={`${count(submitted)} sent to the bank`}
           spark={series.map((p) => p.signups)}
           sparkColor="var(--series-3)"
         />
         <StatTile
           gold
-          label="Pledged value"
+          label="Monthly giving"
           value={moneyCompact(kpis.pledgedValue)}
           unit="/mo"
-          hint={`avg ${moneyCompact(kpis.avgPledge)}`}
+          hint="all donors combined"
           spark={series.map((p) => p.value)}
           sparkColor="var(--series-2)"
         />
@@ -141,7 +141,7 @@ export default async function OverviewPage({
           label="Average gift"
           value={moneyCompact(kpis.avgPledge)}
           unit="/mo"
-          hint={`${percent(kpis.verifiedPct, 0)} phone-verified`}
+          hint="per donor, each month"
         />
         <StatTile
           label="Days to first payment"
@@ -155,7 +155,7 @@ export default async function OverviewPage({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card feature className="xl:col-span-2">
           <CardHeader
-            title="Pledged value over time"
+            title="Monthly giving over time"
             subtitle="How much monthly giving was signed up each week"
             action={
               <span className="flex items-center gap-1.5 text-xs text-muted">
@@ -164,7 +164,7 @@ export default async function OverviewPage({
                   style={{ backgroundColor: 'var(--series-1)' }}
                   aria-hidden
                 />
-                Pledged value
+                Monthly giving
               </span>
             }
           />
@@ -182,7 +182,7 @@ export default async function OverviewPage({
               value: d.value,
               color: SPLIT_COLORS[d.classification] ?? 'var(--series-1)',
             }))}
-            centreLabel="approved and billing"
+            centreLabel="keep paying"
             centreValue={percent(kpis.realizationRate, 0)}
           />
         </Card>

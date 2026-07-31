@@ -98,7 +98,7 @@ export function Donut({
             <span className="numeral text-xl leading-none text-primary @[20rem]:text-2xl">
               {centreValue}
             </span>
-            <span className="mt-1 line-clamp-2 text-center text-[10px] leading-tight text-muted">
+            <span className="mt-1 line-clamp-2 text-center text-[11px] leading-tight text-secondary">
               {centreLabel}
             </span>
           </div>
@@ -130,7 +130,7 @@ export function Donut({
                 <span className="tabular font-semibold text-primary">
                   {fmtCount(a.value)}
                 </span>
-                <span className="tabular text-[11px] text-muted">
+                <span className="tabular text-xs text-muted">
                   {percent(a.fraction, 1)}
                 </span>
               </span>

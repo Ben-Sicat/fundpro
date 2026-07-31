@@ -50,16 +50,17 @@ One card per person. If someone signed up twice, we flag it so nobody gets paid 
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Donors" value={count(donors.length)} />
-        <StatTile label="Multiple pledges" value={count(multi.length)} />
+        <StatTile label="Donors" value={count(donors.length)} hint="unique people" />
+        <StatTile label="Give more than once" value={count(multi.length)} hint="hold several pledges" />
         <StatTile
           label="Possible duplicates"
           value={count(duplicates.length)}
           hint={duplicates.length ? 'review before payroll' : 'none flagged'}
         />
         <StatTile
-          label="Monthly value"
+          label="Monthly giving"
           value={money(donors.reduce((s, d) => s + d.totalMonthlyValue, 0))}
+          hint="everyone combined"
         />
       </div>
 

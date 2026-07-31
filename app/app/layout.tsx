@@ -123,7 +123,7 @@ export default async function AppLayout({
               <span className="block text-xs font-medium text-primary">
                 {session.user.name}
               </span>
-              <span className="hud block text-[9px] text-muted">
+              <span className="hud block text-[10px] text-muted">
                 {actor.role.replace('_', ' ')}
               </span>
             </span>

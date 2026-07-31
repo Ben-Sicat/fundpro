@@ -50,11 +50,11 @@ export function ColumnChart({
                   to drop — with 5 columns in a narrow card there is not room
                   for two stacked labels. */}
               {d.rate !== undefined ? (
-                <span className="tabular mb-1 hidden text-center text-[10px] font-medium text-muted @[18rem]:block">
+                <span className="tabular mb-1 hidden text-center text-[11px] font-medium text-secondary @[18rem]:block">
                   {percent(d.rate, 0)}
                 </span>
               ) : null}
-              <span className="tabular mb-1 text-center text-[11px] font-semibold text-primary">
+              <span className="tabular mb-1 text-center text-xs font-semibold text-primary">
                 {fmtCount(d.value)}
               </span>
               <div
@@ -79,7 +79,7 @@ export function ColumnChart({
         {data.map((d) => (
           <span
             key={d.label}
-            className="min-w-0 flex-1 truncate text-center text-[10px] text-muted @[20rem]:text-[11px]"
+            className="min-w-0 flex-1 truncate text-center text-[11px] text-muted @[20rem]:text-xs"
           >
             {d.label}
           </span>

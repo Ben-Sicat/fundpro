@@ -77,7 +77,7 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
                       </span>
                     ) : null}
                   </span>
-                  <span className="hud max-w-full truncate px-1 text-[9px]">
+                  <span className="hud max-w-full truncate px-1 text-[10px]">
                     {item.label}
                   </span>
                 </Link>
@@ -99,7 +99,7 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
                 <span className="text-base leading-none" aria-hidden>
                   {sheetOpen ? '✕' : '⋯'}
                 </span>
-                <span className="hud text-[9px]">More</span>
+                <span className="hud text-[10px]">More</span>
               </button>
             </li>
           ) : null}
