@@ -25,6 +25,7 @@ import {
   EXPORT_TEMPLATES,
   PAYROLL_RUNS,
   PLEDGES,
+  PLEDGE_NOTES,
   STATUS_CODES,
   UPLOADS,
   computeFundraiserPerformance,
@@ -64,6 +65,7 @@ import type {
   Kpis,
   PayrollRun,
   Pledge,
+  PledgeNote,
   SitePerformance,
   StatusClassification,
   StatusCode,
@@ -169,6 +171,34 @@ export async function getBillingEvents(serialNo: string): Promise<BillingEvent[]
   return BILLING_EVENTS.filter((e) => e.serialNo === serialNo).sort((a, b) =>
     a.statusDate.localeCompare(b.statusDate),
   )
+}
+
+/** Caller remarks for one application, newest first. */
+export async function getPledgeNotes(serialNo: string): Promise<PledgeNote[]> {
+  return PLEDGE_NOTES.filter((n) => n.serialNo === serialNo).sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
+}
+
+/**
+ * Append a caller remark. Notes are a thread, never an overwrite — the same
+ * append-only discipline as billing_events. Callers must have already checked
+ * authorization (the Server Action does); this is the storage step only.
+ */
+export async function addPledgeNote(input: {
+  serialNo: string
+  author: string
+  text: string
+}): Promise<PledgeNote> {
+  const note: PledgeNote = {
+    id: `note_${input.serialNo}_u${PLEDGE_NOTES.length}`,
+    serialNo: input.serialNo,
+    author: input.author,
+    createdAt: new Date().toISOString(),
+    text: input.text,
+  }
+  PLEDGE_NOTES.push(note)
+  return note
 }
 
 export async function getKpis(filters: PledgeFilters = {}): Promise<Kpis> {

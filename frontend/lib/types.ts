@@ -89,7 +89,21 @@ export interface Pledge {
   invoiceNo: string | null
   commissionAmount: number | null
   payoutStatus: 'unpaid' | 'paid' | 'clawed_back' | null
-  notes: string | null
+}
+
+/**
+ * One caller remark on one application — the verification desk's running
+ * commentary ("no answer, retry after 6pm", "confirmed, prefers Viber").
+ * A thread, not a single overwritable field: remarks accumulate like
+ * billing events do.
+ */
+export interface PledgeNote {
+  id: string
+  serialNo: string
+  author: string
+  /** Full ISO timestamp — notes within one day must keep their order. */
+  createdAt: string
+  text: string
 }
 
 /** An uploaded file and what consolidating it did. */

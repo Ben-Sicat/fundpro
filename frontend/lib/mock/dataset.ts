@@ -23,6 +23,7 @@ import type {
   Kpis,
   PayrollRun,
   Pledge,
+  PledgeNote,
   SitePerformance,
   StatusCode,
   TimePoint,
@@ -142,18 +143,21 @@ const LEADERS = ['Adora Lumbre', 'Mark Ramayrat', 'Jhon Magno'] as const
  * more than one leader, and the schema models it as an effective-dated m2m.
  * Two people below sit under two leaders — a single-leader mock would have
  * hidden that case entirely.
+ *
+ * `endDate` is null while the person is still on the team; an inactive
+ * fundraiser keeps their history, so the dates say when it applies.
  */
 const FUNDRAISERS = [
-  { name: 'Almara Pasco', leaderNames: ['Adora Lumbre'], code: 'FR001', active: true },
-  { name: 'Rico Salvador', leaderNames: ['Adora Lumbre'], code: 'FR002', active: true },
-  { name: 'Carmela Dimaano', leaderNames: ['Adora Lumbre', 'Jhon Magno'], code: 'FR003', active: true },
-  { name: 'Noel Gatchalian', leaderNames: ['Mark Ramayrat'], code: 'FR004', active: true },
-  { name: 'Imelda Padilla', leaderNames: ['Mark Ramayrat'], code: 'FR005', active: true },
-  { name: 'Boyet Calderon', leaderNames: ['Mark Ramayrat'], code: 'FR006', active: true },
-  { name: 'Grace Tolentino', leaderNames: ['Jhon Magno'], code: 'FR007', active: true },
-  { name: 'Vicente Ocampo', leaderNames: ['Jhon Magno'], code: 'FR008', active: true },
-  { name: 'Sanya Rivera', leaderNames: ['Jhon Magno', 'Mark Ramayrat'], code: 'FR009', active: true },
-  { name: 'Paulo Espino', leaderNames: ['Adora Lumbre'], code: 'FR010', active: false },
+  { name: 'Almara Pasco', leaderNames: ['Adora Lumbre'], code: 'FR001', active: true, startDate: '2024-03-04', endDate: null },
+  { name: 'Rico Salvador', leaderNames: ['Adora Lumbre'], code: 'FR002', active: true, startDate: '2024-08-19', endDate: null },
+  { name: 'Carmela Dimaano', leaderNames: ['Adora Lumbre', 'Jhon Magno'], code: 'FR003', active: true, startDate: '2023-11-13', endDate: null },
+  { name: 'Noel Gatchalian', leaderNames: ['Mark Ramayrat'], code: 'FR004', active: true, startDate: '2025-01-06', endDate: null },
+  { name: 'Imelda Padilla', leaderNames: ['Mark Ramayrat'], code: 'FR005', active: true, startDate: '2025-04-21', endDate: null },
+  { name: 'Boyet Calderon', leaderNames: ['Mark Ramayrat'], code: 'FR006', active: true, startDate: '2024-06-10', endDate: null },
+  { name: 'Grace Tolentino', leaderNames: ['Jhon Magno'], code: 'FR007', active: true, startDate: '2025-09-01', endDate: null },
+  { name: 'Vicente Ocampo', leaderNames: ['Jhon Magno'], code: 'FR008', active: true, startDate: '2026-02-02', endDate: null },
+  { name: 'Sanya Rivera', leaderNames: ['Jhon Magno', 'Mark Ramayrat'], code: 'FR009', active: true, startDate: '2024-10-07', endDate: null },
+  { name: 'Paulo Espino', leaderNames: ['Adora Lumbre'], code: 'FR010', active: false, startDate: '2024-01-15', endDate: '2026-05-31' },
 ] as const
 
 const FIRST_NAMES = [
@@ -389,7 +393,6 @@ for (let i = 0; i < PLEDGE_COUNT; i++) {
     invoiceNo: invoiced ? `${site.charityCode}-2607-${1000 + i}` : null,
     commissionAmount: paidOut ? Math.round(amount * 2.5) : null,
     payoutStatus: paidOut ? (cancelled ? 'clawed_back' : 'paid') : realized ? 'unpaid' : null,
-    notes: null,
   })
 }
 
@@ -419,6 +422,75 @@ function makeEvent(
 
 export const PLEDGES: Pledge[] = pledges
 export const BILLING_EVENTS: BillingEvent[] = billingEvents
+
+// ---------------------------------------------------------------------------
+// Caller notes — the verification desk's remarks per application
+// ---------------------------------------------------------------------------
+
+/** Remark pools per situation, so a note matches the pledge it sits on. */
+const NOTE_POOLS = {
+  verified: [
+    'Donor answered on the first try — confirmed the pledge and the monthly amount.',
+    'Spoke with the donor, all details confirmed. Prefers Viber for follow-ups.',
+    'Confirmed. Donor asked when the first charge lands; explained the billing cycle.',
+    'Verified on call. Donor mentioned signing up for a friend as well — expect a referral.',
+  ],
+  unverified: [
+    'No answer at 10am. Will try again after office hours.',
+    'Number rings out — second attempt scheduled for tomorrow.',
+    'Reached voicemail, left a callback message. Flagging for the evening shift.',
+    'Donor asked to be called back on the weekend. Set a reminder.',
+  ],
+  retrying: [
+    'Called about the failed charge. Donor will top up the card before the retry.',
+    'Donor says the card was replaced — new expiry to be collected on next call.',
+    'Aware of the failed billing; asked us to retry after payday on the 15th.',
+  ],
+  cancelled: [
+    'Donor asked to stop — budget reasons. Polite call, no complaint about the sign-up.',
+    'Cancellation confirmed. Donor may resume after December; keep on the warm list.',
+  ],
+} as const
+
+const NOTE_AUTHORS = ['Rhea Santos', 'Verification Desk', 'Ops Desk'] as const
+
+/**
+ * Mutable on purpose: `addPledgeNote` in the data seam appends here, exactly
+ * as an INSERT will once the API exists. Roughly a third of applications
+ * carry notes — a thread on every row would read as noise, none at all would
+ * hide the feature.
+ */
+export const PLEDGE_NOTES: PledgeNote[] = (() => {
+  const out: PledgeNote[] = []
+  for (const p of PLEDGES) {
+    if (rng() > 0.34) continue
+    const pool = p.cancelled
+      ? NOTE_POOLS.cancelled
+      : p.currentClassification === 'failed_retryable'
+        ? NOTE_POOLS.retrying
+        : p.verified
+          ? NOTE_POOLS.verified
+          : NOTE_POOLS.unverified
+    const n = int(1, Math.min(3, pool.length))
+    // Notes trail the sign-up by a few days each, mirroring real call attempts.
+    let offset = Math.max(
+      -118,
+      Math.round((new Date(p.signupDate).getTime() - TODAY.getTime()) / 86400000) +
+        int(1, 4),
+    )
+    for (let k = 0; k < n; k++) {
+      out.push({
+        id: `note_${p.serialNo}_${k}`,
+        serialNo: p.serialNo,
+        author: pick(NOTE_AUTHORS),
+        createdAt: `${iso(TODAY, Math.min(offset, 0))}T${String(int(9, 18)).padStart(2, '0')}:${String(int(0, 59)).padStart(2, '0')}:00Z`,
+        text: pool[k % pool.length],
+      })
+      offset += int(2, 6)
+    }
+  }
+  return out
+})()
 
 // ---------------------------------------------------------------------------
 // Derived collections
@@ -829,6 +901,10 @@ export interface FundraiserRecord {
   name: string
   code: string
   active: boolean
+  /** First day on the team. */
+  startDate: string
+  /** Last day, or null while still active. */
+  endDate: string | null
   /** A fundraiser can report to more than one leader. */
   leaderNames: string[]
   signups: number
@@ -859,6 +935,8 @@ export function computeFundraiserRecords(rows: Pledge[] = PLEDGES): FundraiserRe
       name: fr.name,
       code: fr.code,
       active: fr.active,
+      startDate: fr.startDate,
+      endDate: fr.endDate,
       leaderNames: [...fr.leaderNames],
       signups: list.length,
       realized: realized.length,

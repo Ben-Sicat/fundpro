@@ -22,7 +22,7 @@ import {
   getLeaderRecords,
   getSiteNames,
 } from '@/lib/data'
-import { count, money, moneyCompact, percent } from '@/lib/format'
+import { count, date, money, moneyCompact, percent } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Team · FundPro' }
 
@@ -173,6 +173,8 @@ export default async function TeamPage({
                   <Th>Fundraiser</Th>
                   <Th hide="lg">Code</Th>
                   <Th hide="md">Reports to</Th>
+                  <Th hide="lg">Started</Th>
+                  <Th hide="lg">Until</Th>
                   <Th align="right">Sign-ups</Th>
                   <Th align="right">Started paying</Th>
                   <Th align="right">Stick rate</Th>
@@ -198,6 +200,13 @@ export default async function TeamPage({
                           </Badge>
                         ))}
                       </span>
+                    </Td>
+                    <Td hide="lg" className="tabular whitespace-nowrap text-xs">
+                      {date(f.startDate)}
+                    </Td>
+                    <Td hide="lg" className="tabular whitespace-nowrap text-xs">
+                      {/* Blank while the person is still with the agency. */}
+                      {f.endDate ? date(f.endDate) : <span className="text-muted">present</span>}
                     </Td>
                     <Td align="right" className="tabular">
                       {count(f.signups)}

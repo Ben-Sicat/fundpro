@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Badge, Button, Card, CardHeader, Table, Td, Th, Tr } from '@/components/ui'
+import { Badge, Button, Card, CardHeader, Table, Td, Textarea, Th, Tr } from '@/components/ui'
 import { StatusBadge } from '@/components/status-badge'
-import { getBillingEvents, getPledge } from '@/lib/data'
+import { getBillingEvents, getPledge, getPledgeNotes } from '@/lib/data'
 import { auth } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
-import { age, date, expiry, money, daysAgo } from '@/lib/format'
+import { age, date, dateTime, expiry, money, daysAgo, initials } from '@/lib/format'
+import { addNoteAction } from './actions'
 
 export async function generateMetadata({
   params,
@@ -28,6 +29,7 @@ export default async function PledgeDetailPage({
   if (!pledge) notFound()
 
   const events = await getBillingEvents(serial)
+  const notes = await getPledgeNotes(serial)
   const session = await auth()
   const perms = permissionsFor({
     id: session!.user.id,
@@ -267,6 +269,75 @@ export default async function PledgeDetailPage({
           ) : null}
         </Card>
       </div>
+
+      {/* ---- Caller notes: what the verification desk heard on the phone.
+              Gated like the donor card — remarks routinely quote the donor. */}
+      <Card>
+        <CardHeader
+          title="Caller notes"
+          subtitle="Remarks from the verification desk, newest first. Notes are never edited or deleted — add a correction instead."
+          action={canSeePii ? undefined : <Badge tone="neutral">Restricted</Badge>}
+        />
+        {canSeePii ? (
+          <div className="space-y-4">
+            {/* Keyed by count so a successful submit remounts a blank form. */}
+            <form
+              key={notes.length}
+              action={addNoteAction.bind(null, pledge.serialNo)}
+              className="space-y-2"
+            >
+              <label htmlFor="note-text" className="sr-only">
+                Add a note
+              </label>
+              <Textarea
+                id="note-text"
+                name="text"
+                rows={3}
+                required
+                maxLength={2000}
+                placeholder="What did the donor say? e.g. “No answer at 10am — retry after office hours.”"
+              />
+              <div className="flex justify-end">
+                <Button type="submit" variant="primary" size="sm">
+                  ✎ Add note
+                </Button>
+              </div>
+            </form>
+
+            {notes.length === 0 ? (
+              <p className="py-4 text-center text-xs text-muted">
+                No calls logged for this application yet.
+              </p>
+            ) : (
+              <ol className="space-y-3">
+                {notes.map((n) => (
+                  <li key={n.id} className="flex gap-3 rounded-lg border border-line bg-surface-2 p-3">
+                    <span
+                      aria-hidden
+                      className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-3 text-[11px] font-bold text-secondary"
+                    >
+                      {initials(n.author)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted">
+                        <span className="font-semibold text-secondary">{n.author}</span>
+                        {' · '}
+                        <span className="tabular">{dateTime(n.createdAt)}</span>
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-primary">{n.text}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs leading-relaxed text-muted">
+            Caller notes quote donor conversations, so they are hidden for your
+            role along with the rest of the donor’s details.
+          </p>
+        )}
+      </Card>
 
       {/* ---- Billing history ---- */}
       <Card>

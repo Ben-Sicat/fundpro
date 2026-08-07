@@ -6,7 +6,12 @@
  * text and background colour explicitly — inheriting `color` from an ancestor
  * is what made the original inputs invisible.
  */
-import type { ReactNode, InputHTMLAttributes, SelectHTMLAttributes } from 'react'
+import type {
+  ReactNode,
+  InputHTMLAttributes,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from 'react'
 
 function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
@@ -185,6 +190,25 @@ export function Input({
       className={cx(
         // Explicit text + background: the fix for the invisible-text bug.
         'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-primary',
+        'placeholder:text-muted',
+        'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25',
+        'transition-colors',
+        className,
+      )}
+      {...rest}
+    />
+  )
+}
+
+export function Textarea({
+  className,
+  ...rest
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={cx(
+        // Explicit text + background, same as Input — never inherit `color`.
+        'w-full resize-y rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-primary',
         'placeholder:text-muted',
         'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25',
         'transition-colors',

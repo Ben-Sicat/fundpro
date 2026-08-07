@@ -53,6 +53,14 @@ export function date(value: string | null | undefined): string {
   return `${d} ${MONTHS[m - 1]} ${y}`
 }
 
+/** '2026-07-08T09:42:00Z' → '8 Jul 2026 · 09:42'. Date-only input degrades to date(). */
+export function dateTime(value: string | null | undefined): string {
+  if (!value) return '—'
+  const [d, t] = value.split('T')
+  const hm = t?.slice(0, 5)
+  return hm ? `${date(d)} · ${hm}` : date(d)
+}
+
 /** '2026-07-08' → '8 Jul'. */
 export function dateShort(value: string | null | undefined): string {
   if (!value) return '—'

@@ -209,6 +209,9 @@ export const fundraisers = pgTable('fundraisers', {
   /** e.g. 'FP'. */
   recruiterCode: text('recruiter_code'),
   isActive: boolean('is_active').notNull().default(true),
+  /** Employment window; end_date stays null while the person is active. */
+  startDate: date('start_date'),
+  endDate: date('end_date'),
   createdAt: createdAt(),
 })
 
@@ -388,6 +391,27 @@ export const pledges = pgTable(
     index('pledges_signup_date_idx').on(t.signupDate),
     index('pledges_debit_date_idx').on(t.debitDate),
   ],
+)
+
+/**
+ * Caller notes — the verification desk's remarks per application.
+ * A thread, not a single overwritable column: like billing_events, rows are
+ * only ever appended. (`pledges.remarks`/`other_notes` remain the legacy
+ * one-cell fields for byte-compatible exports; they are not this feature.)
+ */
+export const pledgeNotes = pgTable(
+  'pledge_notes',
+  {
+    id: pk(),
+    pledgeId: uuid('pledge_id')
+      .notNull()
+      .references(() => pledges.id, { onDelete: 'cascade' }),
+    /** Display name today; becomes a users FK when Supabase auth lands. */
+    author: text('author').notNull(),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('pledge_notes_pledge_id_idx').on(t.pledgeId)],
 )
 
 /** Corporate / proxy donors ("on behalf of"). */
