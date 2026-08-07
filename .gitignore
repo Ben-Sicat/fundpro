@@ -50,3 +50,6 @@ yarn-error.log*
 
 # ---- Local DB volumes ----
 pgdata/
+
+# cached mermaid bundle for scripts/md2pdf.py
+scripts/.cache/

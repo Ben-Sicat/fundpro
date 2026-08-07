@@ -302,7 +302,8 @@ Privacy Act (RA 10173), so this is a legal requirement, not a nicety.
 Everything sensitive is audit-logged: every import, export, payroll approval
 and settings change, with exports containing PII specifically flagged.
 
-Card numbers are **stored masked only** (`542550XXXXXX2906`). There is
+Card numbers are **stored masked only** (`542550********2906` — exactly as the
+bank sends them; the mask is never normalised). There is
 deliberately no column in the database capable of holding a full card number.
 
 ---
@@ -314,8 +315,8 @@ flowchart LR
     F["✅ Frontend<br/><i>complete, mock-driven</i>"]
     S["✅ Database schema<br/><i>32 tables, tested</i>"]
     P0["✅ Backend scaffold"]
-    P1["🔨 Parser"]
-    P2["⬜ Consolidator"]
+    P1["✅ Parser<br/><i>verified on the real files</i>"]
+    P2["🔨 Consolidator"]
     P3["⬜ Exports"]
     P4["⬜ API + payroll"]
     P5["⬜ Connect UI to API"]
@@ -325,7 +326,8 @@ flowchart LR
     style F fill:#1f6f4a,stroke:#0d3f28,color:#fff
     style S fill:#1f6f4a,stroke:#0d3f28,color:#fff
     style P0 fill:#1f6f4a,stroke:#0d3f28,color:#fff
-    style P1 fill:#8a6d1f,stroke:#4a3a10,color:#fff
+    style P1 fill:#1f6f4a,stroke:#0d3f28,color:#fff
+    style P2 fill:#8a6d1f,stroke:#4a3a10,color:#fff
 ```
 
 The UI you have been reviewing runs entirely on realistic mock data. That was
