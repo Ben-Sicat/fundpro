@@ -23,6 +23,29 @@ constant-time; anything else is a 401). `/health` is deliberately
 unauthenticated so probes work, and returns no error details when the DB is
 down — the real error goes to the server log only.
 
+## Parsing (Phase 1)
+
+`app/parsing/` turns a client workbook into typed records. Pure functions, no
+database. The public surface is `read_rows(path)` → `parse_status_report(...)`.
+
+Every defence exists because the real files needed it (docs/FINDINGS.md §2 and
+the 2026-08-07 addendum):
+
+- Sheets are chosen by **header signature**, never by name or index.
+- Reported dimensions are ignored; reading stops after a run of blank rows.
+- Cells are read twice — cached values and formulas — so `=DATE(2026,7,8)` and
+  `=75*13` both resolve, and `=H2*2.5` resolves when Excel cached an answer.
+- `ExpiryDate` stays **text**, so `0728` keeps its leading zero.
+- Junk columns are preserved in the raw row, excluded from exports.
+- A bad row becomes an `import_exception` and **never fails the batch**.
+
+Formula arithmetic is evaluated by a hand-written parser in `arithmetic.py`,
+not `eval` — spreadsheet cells are untrusted input.
+
+The authoritative column lists are in `app/parsing/headers.py`, transcribed
+from the real files. Test fixtures import them, so a fixture cannot drift from
+the schema it reproduces.
+
 ## Test & lint
 
 ```bash

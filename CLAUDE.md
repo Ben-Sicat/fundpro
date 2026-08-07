@@ -41,7 +41,9 @@ Sample files: /docs/samples/
   is shown.
 
 ## Security & privacy (non-negotiable)
-- NEVER store full card numbers. Masked PAN only (542550XXXXXX2906).
+- NEVER store full card numbers. Masked PAN only. The real files mask with
+  ASTERISKS (`542550********2906`), not X's — verified 2026-08-07. Never
+  normalize the mask character; store exactly what the bank sends.
 - Roles: admin, operations, payroll, viewer, charity_viewer.
   charity_viewer is scoped to ONE charity and can NEVER see donor
   contact details, payment data, or payroll data — enforced at the

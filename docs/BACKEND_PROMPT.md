@@ -82,7 +82,8 @@ Load-bearing invariants (enforced in DB, respect them in code):
 - Business logic branches on `status_codes.classification`, **never** on a raw
   status id. New bank codes are settings inserts.
 - Money columns are `numeric` — use `Decimal` end to end, never float.
-- No column may ever hold a full PAN. `542550XXXXXX2906` masked shapes only.
+- No column may ever hold a full PAN. Masked shapes only — the real files use
+  asterisks (`542550********2906`), verified 2026-08-07.
 
 ## 4. The API contract — the UI already defines it
 

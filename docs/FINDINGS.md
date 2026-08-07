@@ -234,3 +234,62 @@ netByFundraiser(...)       gross - confirmed clawbacks
 5. Must the platform compute 7th/13th-month pay?
 6. Full bank status-code dictionary (only 59 and 66 are known).
 7. The remaining OPEN items already listed in MASTER_SPEC Part 5.
+
+---
+
+# Addendum — verified 2026-08-07 while building the Phase 1 parser
+
+Read directly from `doc/Master Apps Tracker - 16JUL2026.xlsx`,
+`doc/Status Report - 16JUL2026.xlsx` and
+`doc/Master Results Tracker - 16JUL2026.xlsx`. These CORRECT earlier
+assumptions — the column names used before this date were guesses.
+
+## 5.1 The authoritative column lists now live in code
+`backend/app/parsing/headers.py` holds both header lists transcribed from the
+real files, and the test fixtures import them rather than restating them, so a
+fixture can no longer drift from the schema it claims to reproduce.
+
+## 5.2 The 26-column bank schema — actual headers
+```
+Charity Code · Bank · SERIAL NO · SG BATCH NO · NRIC · STATUS ID ·
+STATUS DESCRIPTION · REASON · REASONDESC · STATUS DATE · CUSTOMERS NAME ·
+ACCOUNT NUMBER · CHQ/MO/PO · CREDIT CARD · Anniversary · A0 Attempts ·
+Recruiter Batch No · ExpiryDate · DonationAmount · Frequency ·
+Recruiter Submission Date · AgentID · DEBIT_CREDIT_CARD · LocationCode ·
+Channel · Recruiter Code
+```
+The Status Report and Master Results Tracker headers are **byte-identical**,
+confirming §1's conclusion that the Results Tracker is stacked Status Reports.
+
+## 5.3 New quirks, all load-bearing for exports
+- **`CUSTOMERS NAME` (Status Report) vs `CUSTOMER'S NAME` (Apps Tracker).**
+  The apostrophe exists in one file and not the other. Both are correct.
+- **Amount column differs by file**: `DonationAmount` vs `DONATION AMOUNT`.
+- **The Apps Tracker has BOTH `CARDTYPE` (col 47) and `CARD TYPE` (col 51).**
+  Two distinct columns. Any parser keying rows by header name alone will
+  collapse them — rows must be held positionally.
+- **Masked PANs use asterisks, not X's**: `542550********2906`. MASTER_SPEC and
+  CLAUDE.md both said `542550XXXXXX2906`; both have been corrected. Store the
+  mask exactly as sent; never normalize the mask character.
+
+## 5.4 Trap 8 confirmed exactly as documented
+Apps Tracker junk columns are at positions **4** (header `' '`) and **109**
+(header `None`). Position 4 holds `'FP'` — and the Status Report has an
+explicit `Recruiter Code` column also holding `'FP'`, confirming the earlier
+guess about what that value is.
+
+## 5.5 Signature matching must use UNIQUE columns
+The two schemas overlap on `SERIAL NO`, `STATUS DATE`, `REASON`, `CHQ/MO/PO`,
+`CREDIT CARD`, `ACCOUNT NUMBER` and `Frequency`/`FREQUENCY`. Detection keys on
+columns unique to each file; a test asserts neither signature matches the
+other's header list.
+
+## 5.6 `Payroll Reference - FundPro.xlsx` is a third shape
+It matches neither signature and is correctly rejected. Its per-period sheets
+have unstable layouts (§3.5) and are a separate parser when payroll import is
+scoped — currently out of scope.
+
+## 5.7 Confirmed working against real data
+All three tracker files parse with **zero exceptions**: `=DATE(2026,7,8)` →
+`2026-07-08`, `"1,000.00"` → `Decimal("1000.00")`, and `ExpiryDate` `0728`
+survives as the string `'0728'`.
