@@ -14,8 +14,13 @@ import {
 import { StatTile } from '@/components/charts/stat-tile'
 import { BarList } from '@/components/charts/bar-list'
 import { FilterBar } from '@/components/filter-bar'
+import { FundraiserForm } from '@/components/team/fundraiser-form'
+import { createFundraiserAction } from './actions'
+import { auth } from '@/lib/auth/auth'
+import { permissionsFor } from '@/lib/auth/permissions'
 import { filtersFromParams } from '@/lib/filters'
 import {
+  getAllLeaderNames,
   getCharities,
   getFundraiserRecords,
   getLeaderNames,
@@ -35,13 +40,25 @@ export default async function TeamPage({
   const filters = filtersFromParams(sp)
   const view = sp.view === 'leaders' ? 'leaders' : 'fundraisers'
 
-  const [fundraisers, leaders, charities, leaderNames, siteNames] = await Promise.all([
-    getFundraiserRecords(filters),
-    getLeaderRecords(filters),
-    getCharities(),
-    getLeaderNames(),
-    getSiteNames(),
-  ])
+  const [fundraisers, leaders, charities, leaderNames, siteNames, allLeaders, session] =
+    await Promise.all([
+      getFundraiserRecords(filters),
+      getLeaderRecords(filters),
+      getCharities(),
+      getLeaderNames(),
+      getSiteNames(),
+      getAllLeaderNames(),
+      auth(),
+    ])
+
+  const perms = permissionsFor({
+    id: session!.user.id,
+    role: session!.user.role,
+    charityId: session!.user.charityId,
+    permissions: session!.user.permissions,
+  })
+  const canEdit = perms.includes('edit_reference')
+  const justSaved = sp.added ?? sp.saved
 
   const active = fundraisers.filter((f) => f.active)
   const totalSignups = fundraisers.reduce((s, f) => s + f.signups, 0)
@@ -75,7 +92,7 @@ export default async function TeamPage({
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <StatTile label="Fundraisers" value={count(active.length)} hint={`${fundraisers.length - active.length} inactive`} />
+        <StatTile label="Fundraisers" value={count(active.length)} hint={`${fundraisers.length - active.length} retired`} />
         <StatTile label="Leaders" value={count(leaders.length)} hint="running the teams" />
         <StatTile label="Sign-ups" value={count(totalSignups)} hint="donors recruited" />
         <StatTile
@@ -85,6 +102,38 @@ export default async function TeamPage({
           hint="team average"
         />
       </div>
+
+      {justSaved ? (
+        <p
+          role="status"
+          className="rounded-lg border border-line bg-good-soft px-3 py-2 text-xs font-medium text-good-text"
+        >
+          Saved {justSaved}.
+        </p>
+      ) : null}
+
+      {/* Recruitment is continuous, so adding someone is a first-class action
+          on this page rather than a settings chore. A <details> disclosure
+          keeps it out of the way without needing a modal. */}
+      {canEdit ? (
+        <details className="group">
+          <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-md border border-line-strong bg-surface-2 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-surface-3">
+            <span aria-hidden>+</span>
+            Add a fundraiser
+          </summary>
+          <Card className="mt-3">
+            <CardHeader
+              title="New joiner"
+              subtitle="They appear on the roster immediately, with no sign-ups until their first one lands."
+            />
+            <FundraiserForm
+              action={createFundraiserAction}
+              leaders={allLeaders}
+              submitLabel="Add to team"
+            />
+          </Card>
+        </details>
+      ) : null}
 
       <FilterBar
         action="/app/team"
@@ -185,8 +234,15 @@ export default async function TeamPage({
               </thead>
               <tbody>
                 {fundraisers.map((f) => (
-                  <Tr key={f.name}>
-                    <Td className="font-semibold text-primary">{f.name}</Td>
+                  <Tr key={f.code}>
+                    <Td>
+                      <Link
+                        href={`/app/team/${f.code}`}
+                        className="font-semibold text-accent hover:underline"
+                      >
+                        {f.name}
+                      </Link>
+                    </Td>
                     <Td hide="lg" className="tabular text-xs">
                       {f.code}
                     </Td>
@@ -230,7 +286,7 @@ export default async function TeamPage({
                         </Badge>
                       ) : (
                         <Badge tone="neutral" dot>
-                          Inactive
+                          Retired
                         </Badge>
                       )}
                     </Td>

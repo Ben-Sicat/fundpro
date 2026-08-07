@@ -136,7 +136,8 @@ const SITES = [
   },
 ]
 
-const LEADERS = ['Adora Lumbre', 'Mark Ramayrat', 'Jhon Magno'] as const
+/** Mutable: leaders can be added as the org grows. */
+const LEADERS: string[] = ['Adora Lumbre', 'Mark Ramayrat', 'Jhon Magno']
 
 /**
  * `leaderNames` is a LIST: the notes call out that a fundraiser can report to
@@ -146,8 +147,22 @@ const LEADERS = ['Adora Lumbre', 'Mark Ramayrat', 'Jhon Magno'] as const
  *
  * `endDate` is null while the person is still on the team; an inactive
  * fundraiser keeps their history, so the dates say when it applies.
+ *
+ * Mutable on purpose: recruitment is continuous, so the team page adds to this
+ * array exactly as an INSERT will once the API exists.
  */
-const FUNDRAISERS = [
+export interface FundraiserSeed {
+  name: string
+  /** The agency's own ID number for the person. Unique. */
+  code: string
+  /** A fundraiser can report to more than one leader. */
+  leaderNames: string[]
+  active: boolean
+  startDate: string
+  endDate: string | null
+}
+
+const FUNDRAISERS: FundraiserSeed[] = [
   { name: 'Almara Pasco', leaderNames: ['Adora Lumbre'], code: 'FR001', active: true, startDate: '2024-03-04', endDate: null },
   { name: 'Rico Salvador', leaderNames: ['Adora Lumbre'], code: 'FR002', active: true, startDate: '2024-08-19', endDate: null },
   { name: 'Carmela Dimaano', leaderNames: ['Adora Lumbre', 'Jhon Magno'], code: 'FR003', active: true, startDate: '2023-11-13', endDate: null },
@@ -158,7 +173,7 @@ const FUNDRAISERS = [
   { name: 'Vicente Ocampo', leaderNames: ['Jhon Magno'], code: 'FR008', active: true, startDate: '2026-02-02', endDate: null },
   { name: 'Sanya Rivera', leaderNames: ['Jhon Magno', 'Mark Ramayrat'], code: 'FR009', active: true, startDate: '2024-10-07', endDate: null },
   { name: 'Paulo Espino', leaderNames: ['Adora Lumbre'], code: 'FR010', active: false, startDate: '2024-01-15', endDate: '2026-05-31' },
-] as const
+]
 
 const FIRST_NAMES = [
   'Alina', 'Boyet', 'Carmela', 'Dario', 'Elsie', 'Fidel', 'Grace', 'Hector',

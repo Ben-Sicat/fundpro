@@ -460,3 +460,71 @@ describe('mixed currencies', () => {
     expect(nets.find((n) => n.currency === 'PHP')!.net).toBe(1800)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Rejected, then approved
+//
+// Raised by the owners 2026-08-07: "there are times where a donor is rejected
+// to approved so that needs changing to be payable." These lock in that a
+// pledge which the bank first declines and later approves becomes payable, in
+// the cutoff containing the APPROVAL — and that a stale 'rejected' current
+// status never suppresses it.
+// ---------------------------------------------------------------------------
+
+describe('a pledge rejected and later approved', () => {
+  it('is payable in the cutoff containing the approval, not the rejection', () => {
+    // Declined 3 July, approved on retry 20 July.
+    const p = pledge({ signupDate: '2026-07-01', submittedAt: '2026-07-02', debitDate: '2026-07-20' })
+
+    const firstHalf = generateDraftRun([p], [DEFAULT_PLAN], cutoffFor('2026-07-08'))
+    const secondHalf = generateDraftRun([p], [DEFAULT_PLAN], cutoffFor('2026-07-20'))
+
+    expect(firstHalf).toHaveLength(0)
+    expect(secondHalf).toHaveLength(1)
+    expect(secondHalf[0].eligibilityDate).toBe('2026-07-20')
+  })
+
+  it('is payable even while its CURRENT status is a failure', () => {
+    // Approved in July, then a later monthly billing failed. The commission on
+    // the first successful billing is still owed — current status must not
+    // retroactively unpay it.
+    const p = pledge({
+      debitDate: '2026-07-08',
+      currentClassification: 'failed_retryable',
+    })
+    const run = generateDraftRun([p], [DEFAULT_PLAN], cutoffFor('2026-07-08'))
+
+    expect(run).toHaveLength(1)
+    expect(run[0].commission).toBeGreaterThan(0)
+  })
+
+  it('is not payable while it has only ever been rejected', () => {
+    const p = pledge({ debitDate: null, currentClassification: 'failed_retryable' })
+
+    expect(eligibilityDateFor(p, DEFAULT_PLAN)).toBeNull()
+    expect(generateDraftRun([p], [DEFAULT_PLAN], cutoffFor('2026-07-08'))).toHaveLength(0)
+  })
+
+  it('pays once, not twice, when a later billing also succeeds', () => {
+    // Two approved billings in the same window must not create two payout
+    // lines under the default first-approval rule.
+    const p = pledge({
+      debitDate: '2026-07-08',
+      approvedBillingDates: ['2026-07-08', '2026-07-12'],
+    })
+    const run = generateDraftRun([p], [DEFAULT_PLAN], cutoffFor('2026-07-08'))
+
+    expect(run).toHaveLength(1)
+  })
+
+  it('is not clawed back for the failure that preceded its approval', () => {
+    // The pledge is currently fine; an earlier decline is history, not a
+    // reason to reverse the commission.
+    const p = pledge({ debitDate: '2026-07-20', currentClassification: 'approved' })
+    const paid = [
+      { serialNo: p.serialNo, commission: 1800, paidOn: '2026-07-30', currency: 'PHP' as const },
+    ]
+
+    expect(clawbackCandidatesFor(paid, [p], [DEFAULT_PLAN])).toHaveLength(0)
+  })
+})

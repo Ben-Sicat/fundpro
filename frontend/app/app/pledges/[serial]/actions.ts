@@ -2,28 +2,24 @@
 
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth/auth'
-import { permissionsFor } from '@/lib/auth/permissions'
 import { addPledgeNote, getPledge } from '@/lib/data'
 
 /**
  * Append one caller remark to an application.
  *
- * Notes ride with donor contact details: they exist so the verification desk
- * can record what a donor said on the phone, so they are gated by the same
- * `see_pii` permission as the rest of the donor card. A charity_viewer can
- * never hold that permission.
+ * ANY internal role may add a note — the owners were explicit that remarks are
+ * free text anyone can contribute, not a privilege of the verification desk.
+ *
+ * `charity_viewer` is the one exception and is refused: that role belongs to
+ * someone outside the agency, scoped to a single charity, who may never see
+ * donor contact details — and a caller note routinely quotes exactly that.
+ * Letting them write notes would also let them read the thread.
  */
 export async function addNoteAction(serialNo: string, formData: FormData) {
   const session = await auth()
   if (!session?.user) throw new Error('Not signed in.')
 
-  const perms = permissionsFor({
-    id: session.user.id,
-    role: session.user.role,
-    charityId: session.user.charityId,
-    permissions: session.user.permissions,
-  })
-  if (!perms.includes('see_pii')) {
+  if (session.user.role === 'charity_viewer') {
     throw new Error('Your role cannot add caller notes.')
   }
 

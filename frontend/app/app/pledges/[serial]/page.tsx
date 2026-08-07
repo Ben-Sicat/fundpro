@@ -38,6 +38,9 @@ export default async function PledgeDetailPage({
     permissions: session!.user.permissions,
   })
   const canSeePii = perms.includes('see_pii')
+  // Notes are open to every internal role; only the external
+  // charity viewer is shut out (see actions.ts).
+  const canUseNotes = session!.user.role !== 'charity_viewer'
   const canSeePayment = perms.includes('see_payment')
   const canSeePayroll = perms.includes('see_payroll')
 
@@ -275,10 +278,10 @@ export default async function PledgeDetailPage({
       <Card>
         <CardHeader
           title="Caller notes"
-          subtitle="Remarks from the verification desk, newest first. Notes are never edited or deleted — add a correction instead."
-          action={canSeePii ? undefined : <Badge tone="neutral">Restricted</Badge>}
+          subtitle="Free text, newest first — anyone on the team can add one. Notes are never edited or deleted; add a correction instead."
+          action={canUseNotes ? undefined : <Badge tone="neutral">Restricted</Badge>}
         />
-        {canSeePii ? (
+        {canUseNotes ? (
           <div className="space-y-4">
             {/* Keyed by count so a successful submit remounts a blank form. */}
             <form
@@ -299,7 +302,7 @@ export default async function PledgeDetailPage({
               />
               <div className="flex justify-end">
                 <Button type="submit" variant="primary" size="sm">
-                  ✎ Add note
+                  Add note
                 </Button>
               </div>
             </form>
@@ -333,8 +336,8 @@ export default async function PledgeDetailPage({
           </div>
         ) : (
           <p className="text-xs leading-relaxed text-muted">
-            Caller notes quote donor conversations, so they are hidden for your
-            role along with the rest of the donor’s details.
+            Caller notes quote donor conversations, so they are hidden from
+            charity viewers along with the rest of the donor’s details.
           </p>
         )}
       </Card>

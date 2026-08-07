@@ -23,6 +23,8 @@ import {
   EXCEPTIONS,
   EXPORT_RUNS,
   EXPORT_TEMPLATES,
+  FUNDRAISERS,
+  LEADERS,
   PAYROLL_RUNS,
   PLEDGES,
   PLEDGE_NOTES,
@@ -112,11 +114,13 @@ export interface PledgeFilters {
  * Every leader a fundraiser reports to. The pledge row stores only the primary
  * leader, so filtering on that alone would hide the second team a shared
  * fundraiser belongs to.
+ *
+ * Read live rather than cached in a module-level Map: recruitment happens
+ * while the process is running, and a Map built at import time would not know
+ * about anyone hired since.
  */
-const LEADERS_BY_FUNDRAISER = new Map(
-  computeFundraiserRecords().map((f) => [f.name, f.leaderNames]),
-)
-const leadersOf = (name: string) => LEADERS_BY_FUNDRAISER.get(name) ?? []
+const leadersOf = (name: string): string[] =>
+  FUNDRAISERS.find((f) => f.name === name)?.leaderNames ?? []
 
 function matches(p: Pledge, f: PledgeFilters): boolean {
   if (f.q) {
@@ -511,4 +515,115 @@ export async function getLeaderRecords(
 
 export async function getLeaderNames(): Promise<string[]> {
   return (await getLeaderRecords()).map((l) => l.name)
+}
+
+/** Every leader on the books, including any with an empty team. */
+export async function getAllLeaderNames(): Promise<string[]> {
+  return [...LEADERS].sort()
+}
+
+export async function getFundraiser(code: string): Promise<FundraiserRecord | null> {
+  return (await getFundraiserRecords()).find((f) => f.code === code) ?? null
+}
+
+export interface FundraiserInput {
+  name: string
+  code: string
+  leaderNames: string[]
+  active: boolean
+  startDate: string
+  endDate: string | null
+}
+
+/**
+ * Field-level validation, shared by create and update so the two cannot drift.
+ * Returns a map of field → message; empty means valid.
+ *
+ * `existingCode` is the record being edited, excluded from the uniqueness
+ * check so saving someone without changing their ID is not a clash with
+ * themselves.
+ */
+export function validateFundraiser(
+  input: FundraiserInput,
+  existingCode?: string,
+): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (!input.name.trim()) errors.name = 'Name is required.'
+  if (!input.code.trim()) {
+    errors.code = 'ID number is required.'
+  } else if (
+    FUNDRAISERS.some(
+      (f) => f.code.toLowerCase() === input.code.trim().toLowerCase() && f.code !== existingCode,
+    )
+  ) {
+    errors.code = `ID number ${input.code.trim()} already belongs to someone else.`
+  }
+
+  if (input.leaderNames.length === 0) errors.leaderNames = 'Assign at least one leader.'
+  for (const leader of input.leaderNames) {
+    if (!LEADERS.includes(leader)) errors.leaderNames = `Unknown leader: ${leader}.`
+  }
+
+  if (!input.startDate) errors.startDate = 'Start date is required.'
+
+  // A retired person needs an end date — that date is what stops their
+  // commission accruing, so leaving it blank is a payroll problem, not a
+  // cosmetic one.
+  if (!input.active && !input.endDate) {
+    errors.endDate = 'A retired fundraiser needs an end date.'
+  }
+  if (input.endDate && input.startDate && input.endDate < input.startDate) {
+    errors.endDate = 'End date cannot be before the start date.'
+  }
+  if (input.active && input.endDate) {
+    errors.endDate = 'An active fundraiser should not have an end date.'
+  }
+
+  return errors
+}
+
+export async function createFundraiser(input: FundraiserInput): Promise<FundraiserRecord> {
+  const errors = validateFundraiser(input)
+  if (Object.keys(errors).length) throw new Error(Object.values(errors)[0])
+
+  FUNDRAISERS.push({
+    name: input.name.trim(),
+    code: input.code.trim(),
+    leaderNames: [...input.leaderNames],
+    active: input.active,
+    startDate: input.startDate,
+    endDate: input.endDate,
+  })
+  return (await getFundraiser(input.code.trim()))!
+}
+
+export async function updateFundraiser(
+  code: string,
+  input: FundraiserInput,
+): Promise<FundraiserRecord> {
+  const existing = FUNDRAISERS.find((f) => f.code === code)
+  if (!existing) throw new Error(`No fundraiser with ID ${code}.`)
+
+  const errors = validateFundraiser(input, code)
+  if (Object.keys(errors).length) throw new Error(Object.values(errors)[0])
+
+  // Pledges reference a fundraiser by NAME, so a rename would orphan every
+  // sign-up they have made. Carry the history across with them.
+  const previousName = existing.name
+  const nextName = input.name.trim()
+  if (previousName !== nextName) {
+    for (const p of PLEDGES) {
+      if (p.fundraiserName === previousName) p.fundraiserName = nextName
+    }
+  }
+
+  existing.name = nextName
+  existing.code = input.code.trim()
+  existing.leaderNames = [...input.leaderNames]
+  existing.active = input.active
+  existing.startDate = input.startDate
+  existing.endDate = input.endDate
+
+  return (await getFundraiser(existing.code))!
 }
