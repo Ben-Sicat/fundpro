@@ -18,13 +18,13 @@ def test_empty_token_is_401(client):
 
 
 def test_valid_token_passes_auth(client, auth_headers):
-    # /pledges is not implemented yet, so passing auth means 404, not 401.
-    assert client.get("/pledges", headers=auth_headers).status_code == 404
+    # Passing auth reaches the route; the route itself now exists.
+    assert client.get("/pledges", headers=auth_headers).status_code == 200
 
 
 def test_bearer_scheme_is_case_insensitive(client):
     resp = client.get("/pledges", headers={"Authorization": "bearer test-api-key"})
-    assert resp.status_code == 404
+    assert resp.status_code == 200
 
 
 def test_401_body_has_no_detail_about_the_key(client):

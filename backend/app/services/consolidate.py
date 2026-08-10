@@ -1,0 +1,424 @@
+"""Consolidation — the manual VLOOKUP step, automated.
+
+Match each Status Report row to an application on `SERIAL NO`, validate it is
+really the same pledge, append to the append-only billing history, then derive
+the pledge's current state from that history.
+
+Three properties this must have, all of them things the spreadsheet process
+gets wrong:
+
+1. **Idempotent.** Re-uploading the same file changes nothing. The daily bank
+   file repeats rows, so this is the normal case, not an edge case.
+2. **Total.** Every input row ends as either an event or an exception. A row
+   never silently disappears.
+3. **Non-destructive.** History is appended; current status is recomputed from
+   it. A late-arriving row for an old date cannot erase a newer outcome.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from app.domain.models import (
+    BillingEvent,
+    ImportException,
+    ImportProblem,
+    Pledge,
+    Upload,
+    UploadImpact,
+)
+from app.parsing.apps_tracker import AppsParseResult, AppsTrackerRecord
+from app.parsing.status_report import ParseResult, RowException
+from app.store.memory import Store
+
+
+@dataclass
+class ConsolidationResult:
+    upload: Upload
+    impact: UploadImpact
+    exceptions: list[ImportException]
+
+
+def _norm_name(value: str | None) -> str:
+    """Case- and whitespace-insensitive name key for the secondary check."""
+    return " ".join((value or "").split()).casefold()
+
+
+def _pan_tail(value: str | None) -> str:
+    """Last four digits of a masked PAN.
+
+    The mask CHARACTER differs between files (asterisks in the bank file), so
+    comparing the whole string produces false mismatches. The tail is the part
+    that actually identifies the card.
+    """
+    digits = [c for c in (value or "") if c.isdigit()]
+    return "".join(digits[-4:]) if len(digits) >= 4 else ""
+
+
+# ---------------------------------------------------------------------------
+# Status Report → billing events
+# ---------------------------------------------------------------------------
+
+
+def consolidate_status_report(
+    store: Store,
+    parsed: ParseResult,
+    *,
+    filename: str,
+    uploaded_by: str,
+) -> ConsolidationResult:
+    upload_id = store.next_id("upl")
+    now = datetime.now(UTC)
+    exceptions: list[ImportException] = []
+
+    def fail(
+        row_exc: RowException | None,
+        *,
+        problem: ImportProblem,
+        serial: str | None,
+        detail: str,
+        raw: str,
+    ) -> None:
+        exceptions.append(
+            ImportException(
+                id=store.next_id("exc"),
+                upload_id=upload_id,
+                filename=filename,
+                serial_no=serial,
+                problem=problem,
+                detail=detail,
+                raw_summary=raw,
+                resolved=False,
+                created_at=now,
+            )
+        )
+
+    # Rows the parser itself could not read.
+    for row_exc in parsed.exceptions:
+        fail(
+            row_exc,
+            problem="parse_error",
+            serial=row_exc.serial_no,
+            detail=row_exc.detail,
+            raw=f"row {row_exc.row_number}",
+        )
+
+    matched = 0
+    touched: set[str] = set()
+
+    for record in parsed.records:
+        pledge = store.get_pledge(record.serial_no)
+
+        if pledge is None:
+            fail(
+                None,
+                problem="no_matching_pledge",
+                serial=record.serial_no,
+                detail="SERIAL NO is not in the applications master",
+                raw=f"{record.serial_no} · STATUS ID {record.status_id}",
+            )
+            continue
+
+        if not store.settings.knows_status(record.status_id):
+            fail(
+                None,
+                problem="unknown_status_id",
+                serial=record.serial_no,
+                detail=(
+                    f"STATUS ID {record.status_id} is not in the status dictionary; "
+                    "add it in Settings and re-run"
+                ),
+                raw=f"{record.serial_no} · STATUS ID {record.status_id}",
+            )
+            continue
+
+        # Secondary validation. A serial that matches but a donor who does not
+        # means the file is misaligned — updating silently would corrupt the
+        # wrong person's record.
+        if (
+            record.donor_name
+            and pledge.donor_name
+            and _norm_name(record.donor_name) != _norm_name(pledge.donor_name)
+        ):
+            fail(
+                None,
+                problem="name_mismatch",
+                serial=record.serial_no,
+                detail="donor name on the bank row does not match the application",
+                raw=f"{record.serial_no} · STATUS ID {record.status_id}",
+            )
+            continue
+
+        if (
+            record.masked_pan
+            and pledge.masked_pan
+            and _pan_tail(record.masked_pan)
+            and _pan_tail(record.masked_pan) != _pan_tail(pledge.masked_pan)
+        ):
+            fail(
+                None,
+                problem="pan_mismatch",
+                serial=record.serial_no,
+                detail="masked card number differs from the stored instrument",
+                raw=f"{record.serial_no} · STATUS ID {record.status_id}",
+            )
+            continue
+
+        matched += 1
+        added = store.add_billing_event(
+            BillingEvent(
+                id=store.next_id("evt"),
+                serial_no=record.serial_no,
+                status_id=record.status_id,
+                status_description=(
+                    record.status_description
+                    or store.settings.status_description_for(record.status_id)
+                    or "Unknown"
+                ),
+                reason=record.reason,
+                reason_desc=record.reason_desc,
+                status_date=record.status_date,
+                bank_batch_no=record.recruiter_batch_no,
+                attempt_no=record.attempts or 1,
+                upload_id=upload_id,
+            )
+        )
+        if added:
+            touched.add(record.serial_no)
+
+    for serial in touched:
+        recompute_pledge_state(store, serial)
+
+    upload = Upload(
+        id=upload_id,
+        filename=filename,
+        source_type="status_report",
+        uploaded_at=now,
+        uploaded_by=uploaded_by,
+        row_count=parsed.total,
+        matched_count=matched,
+        new_record_count=0,
+        exception_count=len(exceptions),
+        status="needs_review" if exceptions else "consolidated",
+    )
+    store.uploads.append(upload)
+    store.exceptions.extend(exceptions)
+    store.log(
+        uploaded_by,
+        "import.status_report",
+        f"{filename}: {parsed.total} rows, {matched} matched, {len(exceptions)} exceptions",
+    )
+
+    return ConsolidationResult(
+        upload=upload,
+        impact=impact_of(store, upload_id),
+        exceptions=exceptions,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Apps Tracker → pledges
+# ---------------------------------------------------------------------------
+
+
+def consolidate_apps_tracker(
+    store: Store,
+    parsed: AppsParseResult,
+    *,
+    filename: str,
+    uploaded_by: str,
+) -> ConsolidationResult:
+    upload_id = store.next_id("upl")
+    now = datetime.now(UTC)
+    exceptions: list[ImportException] = []
+    created = 0
+    updated = 0
+
+    for row_exc in parsed.exceptions:
+        exceptions.append(
+            ImportException(
+                id=store.next_id("exc"),
+                upload_id=upload_id,
+                filename=filename,
+                serial_no=row_exc.serial_no,
+                problem="parse_error",
+                detail=row_exc.detail,
+                raw_summary=f"row {row_exc.row_number}",
+                resolved=False,
+                created_at=now,
+            )
+        )
+
+    for record in parsed.records:
+        existed = store.get_pledge(record.serial_no) is not None
+        store.upsert_pledge(_pledge_from_apps_record(store, record))
+        if existed:
+            updated += 1
+        else:
+            created += 1
+
+        if record.fundraiser_name:
+            store.ensure_fundraiser(record.fundraiser_name)
+        if record.event_code:
+            store.ensure_site(
+                record.event_code,
+                location_name=record.location_code or record.event_code,
+                country=record.country,
+                charity=store.settings.canonical_charity(record.charity_code),
+            )
+        # A tracker row may already carry a billing outcome from the client's
+        # own VLOOKUP. Re-derive so it does not override real event history.
+        recompute_pledge_state(store, record.serial_no)
+
+    upload = Upload(
+        id=upload_id,
+        filename=filename,
+        source_type="apps_tracker",
+        uploaded_at=now,
+        uploaded_by=uploaded_by,
+        row_count=parsed.total,
+        matched_count=created + updated,
+        new_record_count=created,
+        exception_count=len(exceptions),
+        status="needs_review" if exceptions else "consolidated",
+    )
+    store.uploads.append(upload)
+    store.exceptions.extend(exceptions)
+    store.log(
+        uploaded_by,
+        "import.apps_tracker",
+        f"{filename}: {parsed.total} rows, {created} new, {updated} updated, "
+        f"{len(exceptions)} exceptions",
+    )
+
+    impact = impact_of(store, upload_id)
+    impact = impact.model_copy(update={"new_pledges": created})
+    return ConsolidationResult(upload=upload, impact=impact, exceptions=exceptions)
+
+
+def _pledge_from_apps_record(store: Store, r: AppsTrackerRecord) -> Pledge:
+    settings = store.settings
+    existing = store.get_pledge(r.serial_no)
+    country = "MY" if r.country == "MY" else "PH"
+
+    return Pledge(
+        serial_no=r.serial_no,
+        donor_name=r.donor_name,
+        donor_email=r.donor_email,
+        donor_mobile=r.donor_mobile,
+        donor_dob=r.donor_dob,
+        gender=r.gender,
+        city=r.city,
+        country=country,
+        charity_code=settings.canonical_charity(r.charity_code),
+        campaign_code=r.campaign_code,
+        site_name=r.event_code,
+        location_name=r.location_code or r.event_code,
+        agent_id=r.agent_id,
+        fundraiser_name=r.fundraiser_name,
+        leader_name=(store.leaders_of(r.fundraiser_name) or [""])[0],
+        amount=r.amount if r.amount is not None else Decimal(0),
+        # Currency follows the country of acquisition. OPEN with the client
+        # (FINDINGS §3.2) — kept per-pledge rather than assumed globally.
+        currency="MYR" if country == "MY" else "PHP",
+        frequency=settings.canonical_frequency(r.frequency),
+        instrument_type=settings.canonical_card_type(r.card_type),
+        masked_pan=r.masked_pan,
+        expiry=r.expiry,
+        issuing_bank=r.issuing_bank,
+        processing_bank=r.processing_bank,
+        signup_date=r.signup_date,
+        submitted_at=r.status_date,
+        # Derived from events; seeded from the sheet only when no event exists.
+        debit_date=existing.debit_date if existing else r.debit_date,
+        verified_at=r.verified_at,
+        cancellation_date=r.cancellation_date,
+        invoiced_date=r.invoiced_date,
+        payout_date=r.payout_date,
+        verified=r.verified,
+        verified_by=r.verified_by,
+        app_status=r.app_status,
+        cancelled=r.cancelled,
+        invoice_no=r.invoice_no,
+        payout_status="paid" if r.payout_date else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Derivation
+# ---------------------------------------------------------------------------
+
+
+def recompute_pledge_state(store: Store, serial_no: str) -> Pledge | None:
+    """Recompute a pledge's current state from its billing history.
+
+    Rules (BACKEND_PROMPT §3):
+      - current status = the LATEST event by status date
+      - debit_date     = the FIRST event classifying as `approved`
+      - attempts       = number of events
+
+    `debit_date` deliberately does not move once set, and does not clear when a
+    later billing fails: the money did move, the commission was earned, and a
+    later failure is a clawback question rather than a reason to rewrite
+    history. This is what makes a rejected-then-approved pledge payable.
+    """
+    pledge = store.get_pledge(serial_no)
+    if pledge is None:
+        return None
+
+    events = store.events_for(serial_no)
+    if not events:
+        return pledge
+
+    settings = store.settings
+    latest = events[-1]
+    approved = [
+        e for e in events if settings.classification_for(e.status_id) == "approved"
+    ]
+    cancelled_events = [
+        e for e in events if settings.classification_for(e.status_id) == "cancelled"
+    ]
+
+    updated = pledge.model_copy(
+        update={
+            "current_status_id": latest.status_id,
+            "current_status_description": latest.status_description,
+            "current_status_date": latest.status_date,
+            "current_classification": settings.classification_for(latest.status_id),
+            "attempts": len(events),
+            "debit_date": approved[0].status_date if approved else pledge.debit_date,
+            "cancelled": bool(cancelled_events) or pledge.cancelled,
+            "cancellation_date": (
+                cancelled_events[-1].status_date
+                if cancelled_events
+                else pledge.cancellation_date
+            ),
+        }
+    )
+    store.upsert_pledge(updated)
+    return updated
+
+
+def impact_of(store: Store, upload_id: str) -> UploadImpact:
+    """What one upload changed, derived from the events it carried."""
+    events = store.events_from_upload(upload_id)
+    settings = store.settings
+
+    def count(classification: str) -> int:
+        return sum(
+            1 for e in events if settings.classification_for(e.status_id) == classification
+        )
+
+    return UploadImpact(
+        upload_id=upload_id,
+        newly_approved=count("approved"),
+        newly_retrying=count("failed_retryable"),
+        newly_failed_final=count("failed_final"),
+        newly_cancelled=count("cancelled"),
+        exceptions=sum(
+            1 for e in store.exceptions if e.upload_id == upload_id and not e.resolved
+        ),
+        changed_master=bool(events),
+    )
