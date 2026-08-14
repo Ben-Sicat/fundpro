@@ -54,8 +54,11 @@ strong { color: #0d1b2a; }
 a { color: #1e5f9f; text-decoration: none; }
 code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 9pt;
        background: #f1f3f6; padding: 1pt 3.5pt; border-radius: 2.5pt; color: #7a2020; }
+/* Wrap rather than scroll: on paper a horizontally-scrolled command is a
+   truncated command, and this is a document people type from. */
 pre { background: #f6f8fa; border: 0.6pt solid #dde2e8; border-radius: 4pt;
-      padding: 8pt; overflow-x: auto; font-size: 8.5pt; }
+      padding: 8pt; font-size: 8.5pt;
+      white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 pre code { background: none; padding: 0; color: #1a1d21; }
 blockquote { margin: 8pt 0; padding: 7pt 11pt; border-left: 3pt solid #c9a227;
              background: #fdfaf1; color: #3a3f45; }
