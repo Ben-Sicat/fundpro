@@ -226,6 +226,8 @@ class SitePerformance(Wire):
     ends_on: date | None = None
     staff_count: int = 0
     signups: int = 0
+    #: Exposed so the rate below can be checked against its own inputs.
+    realized: int = 0
     realization_rate: float = 0.0
     pledged_value: Money = Decimal(0)
 
@@ -344,9 +346,21 @@ class FundraiserNet(Wire):
     fundraiser_name: str
     currency: Currency
     gross: Money
-    clawbacks: Money
-    net: Money
-    pledge_count: int
+    bonuses: Money = Decimal(0)
+    clawbacks: Money = Decimal(0)
+    net: Money = Decimal(0)
+    pledge_count: int = 0
+
+
+class BonusLine(Wire):
+    fundraiser_name: str
+    currency: Currency
+    rule_id: str
+    rule_name: str
+    basis: str
+    basis_value: Money
+    threshold: Money
+    amount: Money
 
 
 class PayrollRunDetail(Wire):
@@ -354,6 +368,7 @@ class PayrollRunDetail(Wire):
     lines: list[PayoutLine]
     nets: list[FundraiserNet]
     clawbacks: list[ClawbackCandidate]
+    bonuses: list[BonusLine] = []
 
 
 # ---------------------------------------------------------------------------

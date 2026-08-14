@@ -227,6 +227,70 @@ Every report shows how many rows you will get **before** you generate it.
 
 ---
 
+## 6a. What you can change yourselves
+
+Nothing below needs a developer or a new release. An admin changes it in
+settings and the next calculation uses the new value.
+
+### Commission
+
+| Setting | Now | What you can do |
+|---|---|---|
+| Multiplier | ×3 | Any multiplier, or a flat fee per pledge instead |
+| Per charity | one rule for all | A different multiplier for each charity |
+| Per frequency | one rule for all | e.g. ×2.5 monthly, ×3 semi-annual |
+| When it is earned | on first successful billing | On sign-up, or after N successful billings |
+| Effective date | — | Rules are dated. A new rule **never** re-prices past payroll |
+
+### Bonuses
+
+Bonuses are set up as **tiers on a target**. Pick what to measure, set the
+rungs, and optionally add a quality gate.
+
+- **Measure:** donors who billed · value of those donors · realization rate ·
+  sign-ups regardless of outcome
+- **Period:** the pay period, or the whole calendar month
+- **Reward:** a fixed amount, a percentage of the commission earned, or both
+- **Quality gate:** no bonus unless realization is above a rate you set
+- **Scope:** all charities or just one
+
+Two rules worth knowing. **Only the highest tier reached is paid** — tiers are
+a ladder, not a stack, so clearing "20 donors" does not also pay the "10
+donors" rung. And bonuses are **per currency**, like everything else.
+
+*Example: "₱2,500 once someone gets 5 billing donors in a month, but only if
+at least 70% of their sign-ups actually bill."* That is one settings entry.
+
+**No bonus scheme is configured yet.** We deliberately did not invent one —
+tell us the real rules and we will enter them.
+
+### Clawbacks
+
+| Setting | Now | What you can do |
+|---|---|---|
+| What triggers one | cancelled, failed for good, never billed | Remove any of these |
+| Window | 90 days after payment | Any number of days |
+
+### Everything else
+
+| Setting | Now |
+|---|---|
+| Realization rate denominator | of those sent to the bank *(or: of all sign-ups)* |
+| Require a verification call before paying | off |
+| Pay date when it falls on a weekend | the 15th / 30th as-is *(or: previous business day)* |
+| Bank status codes | 8 known, add more any time |
+| Charity name aliases | UNHCR MY → UNHCR, etc. |
+| Frequency codes | 1 → Monthly, 3 → Quarterly, … |
+| Venue name aliases | for tidying free-text site names |
+| Currency conversion | never combined |
+
+There is a single screen (`Settings → Configuration`) that lists all of these
+with their current value and marks each one **confirmed** or **assumed**, so
+you can see at a glance which rules we are still guessing at. Right now that
+is **13 of 14**.
+
+---
+
 ## 7. Questions we need you to answer
 
 We would rather ask than guess. Each of these is currently a setting with our

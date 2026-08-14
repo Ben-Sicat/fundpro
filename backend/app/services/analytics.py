@@ -4,11 +4,12 @@ Two conventions worth stating once, because they are the difference between
 numbers that agree across pages and numbers that do not:
 
 - **Realized** means the pledge billed at least once and has not cancelled.
-- **Realization rate** is realized ÷ SUBMITTED-to-bank, not ÷ all sign-ups.
-  Pledges not yet sent to the bank have not had their chance yet, so counting
-  them as failures understates the team. This is the single definition used
-  everywhere here; the frontend currently has three, which is a known defect
-  the owners still owe a decision on.
+- **Realization rate** defaults to realized ÷ SUBMITTED-to-bank, not ÷ all
+  sign-ups: pledges not yet sent to the bank have not had their chance, so
+  counting them as failures understates the team. Both readings are
+  defensible, so the denominator is a SETTING (`realization_basis`) — but
+  whichever is chosen is used everywhere, consistently. The frontend currently
+  has three different denominators, which is a known defect.
 """
 
 from __future__ import annotations
@@ -44,6 +45,17 @@ def _q(value: Decimal) -> Decimal:
 
 def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 6) if denominator else 0.0
+
+
+def realization_denominator(store: Store, rows: list[Pledge]) -> int:
+    """How many pledges the realization rate divides by.
+
+    One function, used by every caller, so the headline number cannot mean
+    different things on different pages.
+    """
+    if store.settings.realization_basis == "signups":
+        return len(rows)
+    return sum(1 for p in rows if is_submitted(p))
 
 
 def is_realized(p: Pledge) -> bool:
@@ -155,9 +167,9 @@ def select(store: Store, f: PledgeFilters) -> list[Pledge]:
 # ---------------------------------------------------------------------------
 
 
-def kpis(rows: list[Pledge], *, today: date) -> Kpis:
-    submitted = [p for p in rows if is_submitted(p)]
+def kpis(store: Store, rows: list[Pledge], *, today: date) -> Kpis:
     realized = [p for p in rows if is_realized(p)]
+    denominator = realization_denominator(store, rows)
     pledged = sum((p.amount for p in rows), Decimal(0))
 
     lags = [
@@ -170,7 +182,7 @@ def kpis(rows: list[Pledge], *, today: date) -> Kpis:
     return Kpis(
         signups=len(rows),
         pledged_value=_q(pledged),
-        realization_rate=_rate(len(realized), len(submitted)),
+        realization_rate=_rate(len(realized), denominator),
         # Prior-period comparison is not derivable until there is history in
         # the store; reported as 0 rather than invented.
         realization_delta=0.0,
@@ -274,19 +286,18 @@ def age_of(dob: date, today: date) -> int:
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
-def age_bands(rows: list[Pledge], *, today: date) -> list[AgeBand]:
+def age_bands(store: Store, rows: list[Pledge], *, today: date) -> list[AgeBand]:
     out: list[AgeBand] = []
     for label, low, high in AGE_BANDS:
         group = [
             p for p in rows if p.donor_dob and low <= age_of(p.donor_dob, today) <= high
         ]
-        submitted = [p for p in group if is_submitted(p)]
         realized = [p for p in group if is_realized(p)]
         out.append(
             AgeBand(
                 band=label,
                 count=len(group),
-                realization_rate=_rate(len(realized), len(submitted)),
+                realization_rate=_rate(len(realized), realization_denominator(store, group)),
             )
         )
     return out
@@ -303,7 +314,7 @@ def frequency_mix(rows: list[Pledge]) -> list[LabelledCount]:
     ]
 
 
-def bank_performance(rows: list[Pledge]) -> list[BankPerformance]:
+def bank_performance(store: Store, rows: list[Pledge]) -> list[BankPerformance]:
     """Realization per bank — 'consolidate and show banks who fail'.
 
     Both roles are reported because they answer different questions: the
@@ -336,7 +347,8 @@ def bank_performance(rows: list[Pledge]) -> list[BankPerformance]:
                     ),
                     cancelled=sum(1 for p in group if p.cancelled),
                     realization_rate=_rate(
-                        sum(1 for p in group if is_realized(p)), len(submitted)
+                        sum(1 for p in group if is_realized(p)),
+                        realization_denominator(store, group),
                     ),
                     pledged_value=_q(sum((p.amount for p in group), Decimal(0))),
                 )
@@ -359,7 +371,6 @@ def fundraiser_performance(
 
     out: list[FundraiserPerformance] = []
     for name, group in groups.items():
-        submitted = [p for p in group if is_submitted(p)]
         realized = [p for p in group if is_realized(p)]
         value = sum((p.amount for p in group), Decimal(0))
         out.append(
@@ -368,7 +379,7 @@ def fundraiser_performance(
                 leader_name=(store.leaders_of(name) or [""])[0],
                 signups=len(group),
                 realized=len(realized),
-                realization_rate=_rate(len(realized), len(submitted)),
+                realization_rate=_rate(len(realized), realization_denominator(store, group)),
                 avg_pledge=_q(value / len(group)) if group else Decimal(0),
                 pledged_value=_q(value),
                 gross_commission=_q(
@@ -394,7 +405,6 @@ def fundraiser_records(store: Store, rows: list[Pledge]) -> list[FundraiserRecor
     out: list[FundraiserRecord] = []
     for seed in store.fundraisers:
         group = by_name.get(seed.name, [])
-        submitted = [p for p in group if is_submitted(p)]
         realized = [p for p in group if is_realized(p)]
         value = sum((p.amount for p in group), Decimal(0))
         out.append(
@@ -407,7 +417,7 @@ def fundraiser_records(store: Store, rows: list[Pledge]) -> list[FundraiserRecor
                 leader_names=list(seed.leader_names),
                 signups=len(group),
                 realized=len(realized),
-                realization_rate=_rate(len(realized), len(submitted)),
+                realization_rate=_rate(len(realized), realization_denominator(store, group)),
                 pledged_value=_q(value),
                 avg_pledge=_q(value / len(group)) if group else Decimal(0),
                 sites=sorted({p.site_name for p in group if p.site_name}),
@@ -430,6 +440,7 @@ def leader_records(store: Store, rows: list[Pledge]) -> list[LeaderRecord]:
         team = [f for f in records if leader in f.leader_names]
         signups = sum(f.signups for f in team)
         realized = sum(f.realized for f in team)
+        members = [p for p in rows if p.fundraiser_name in {f.name for f in team}]
         out.append(
             LeaderRecord(
                 name=leader,
@@ -437,7 +448,9 @@ def leader_records(store: Store, rows: list[Pledge]) -> list[LeaderRecord]:
                 fundraiser_names=[f.name for f in team],
                 signups=signups,
                 realized=realized,
-                realization_rate=_rate(realized, signups),
+                # Same denominator rule as everywhere else, so a leader's rate
+                # is comparable with their own team members'.
+                realization_rate=_rate(realized, realization_denominator(store, members)),
                 pledged_value=_q(sum((f.pledged_value for f in team), Decimal(0))),
             )
         )
@@ -448,7 +461,6 @@ def site_performance(store: Store, rows: list[Pledge]) -> list[SitePerformance]:
     out: list[SitePerformance] = []
     for site in store.sites:
         group = [p for p in rows if p.site_name == site.name]
-        submitted = [p for p in group if is_submitted(p)]
         realized = [p for p in group if is_realized(p)]
         out.append(
             SitePerformance(
@@ -460,7 +472,8 @@ def site_performance(store: Store, rows: list[Pledge]) -> list[SitePerformance]:
                 ends_on=date.fromisoformat(site.ends_on) if site.ends_on else None,
                 staff_count=len({p.fundraiser_name for p in group if p.fundraiser_name}),
                 signups=len(group),
-                realization_rate=_rate(len(realized), len(submitted)),
+                realized=len(realized),
+                realization_rate=_rate(len(realized), realization_denominator(store, group)),
                 pledged_value=_q(sum((p.amount for p in group), Decimal(0))),
             )
         )

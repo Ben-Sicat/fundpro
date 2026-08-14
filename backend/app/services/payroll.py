@@ -17,6 +17,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from app.domain.models import (
     ClawbackCandidate,
@@ -50,6 +51,10 @@ class PayrollPledge:
     current_classification: str | None = None
     #: Status dates of approved billings, ascending. For `on_n_billings`.
     approved_billing_dates: tuple[date, ...] = ()
+    #: Canonical frequency, for frequency-scoped plans.
+    frequency: str | None = None
+    #: Whether the donor has been phoned and confirmed.
+    verified: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -103,27 +108,37 @@ def plan_for_pledge(
 ) -> CommissionPlan | None:
     """The plan in force for a pledge.
 
-    The latest plan effective at or before its SIGN-UP date, preferring a
-    charity-specific plan over the catch-all. Keying on signup date rather
-    than today is what stops a new plan silently repricing historic payroll.
+    The latest plan effective at or before its SIGN-UP date, preferring the
+    most SPECIFIC match. Keying on signup date rather than today is what stops
+    a new plan silently repricing historic payroll.
     """
     eligible = [
         p
         for p in plans
         if p.effective_from <= pledge.signup_date
         and (p.charity_code is None or p.charity_code == pledge.charity_code)
+        and (p.frequency is None or p.frequency == pledge.frequency)
     ]
     if not eligible:
         return None
+    # Most recent first; on a tie the more specific plan wins, so a
+    # charity-and-frequency plan beats a charity plan beats the catch-all.
     eligible.sort(
-        key=lambda p: (p.effective_from, 1 if p.charity_code is not None else 0),
+        key=lambda p: (
+            p.effective_from,
+            (1 if p.charity_code is not None else 0)
+            + (1 if p.frequency is not None else 0),
+        ),
         reverse=True,
     )
     return eligible[0]
 
 
 def eligibility_date_for(
-    pledge: PayrollPledge, plan: CommissionPlan
+    pledge: PayrollPledge,
+    plan: CommissionPlan,
+    *,
+    require_verification: bool = False,
 ) -> date | None:
     """The date a pledge becomes payable, or None if it never has.
 
@@ -135,6 +150,11 @@ def eligibility_date_for(
     bank first rejected and later approved payable in the cutoff containing
     the approval — and keeps it payable if a later billing fails.
     """
+    # An optional quality gate: no commission until the donor has been phoned
+    # and confirmed real. Off by default; the client decides.
+    if require_verification and not pledge.verified:
+        return None
+
     if plan.trigger_rule == "on_submission":
         return pledge.submitted_at
     if plan.trigger_rule == "on_first_approval":
@@ -163,6 +183,8 @@ def generate_draft_run(
     pledges: list[PayrollPledge],
     plans: list[CommissionPlan],
     cutoff: Cutoff,
+    *,
+    require_verification: bool = False,
 ) -> list[PayoutLine]:
     """Payout lines for one cutoff: every pledge whose eligibility date falls
     inside the window, priced by the plan in force at its signup date."""
@@ -171,7 +193,9 @@ def generate_draft_run(
         plan = plan_for_pledge(pledge, plans)
         if plan is None:
             continue
-        eligible_on = eligibility_date_for(pledge, plan)
+        eligible_on = eligibility_date_for(
+            pledge, plan, require_verification=require_verification
+        )
         if eligible_on is None:
             continue
         if eligible_on < cutoff.start or eligible_on > cutoff.end:
@@ -238,6 +262,10 @@ def clawback_candidates_for(
 
         if reason is None or triggered_on is None:
             continue
+        # The plan says which failures actually reverse a commission. Ignoring
+        # this would propose clawbacks the frontend rules would not.
+        if reason not in plan.clawback_on:
+            continue
         # Outside the window the commission is kept — that is the point of it.
         if days_between(payout.paid_on, triggered_on) > plan.realization_window_days:
             continue
@@ -257,13 +285,17 @@ def clawback_candidates_for(
 
 
 def net_by_fundraiser(
-    lines: list[PayoutLine], clawbacks: list[ClawbackCandidate]
+    lines: list[PayoutLine],
+    clawbacks: list[ClawbackCandidate],
+    bonuses: list[Any] | None = None,
 ) -> list[FundraiserNet]:
     """Net payable per fundraiser PER CURRENCY.
 
     Never summed across currencies: every fundraiser in the book holds both
     PHP and MYR pledges, and one total would be meaningless. Only CONFIRMED
     clawbacks are netted.
+
+    net = commission + bonuses - confirmed clawbacks.
     """
     acc: dict[tuple[str, str], FundraiserNet] = {}
 
@@ -274,6 +306,7 @@ def net_by_fundraiser(
                 fundraiser_name=name,
                 currency=currency,  # type: ignore[arg-type]
                 gross=Decimal(0),
+                bonuses=Decimal(0),
                 clawbacks=Decimal(0),
                 net=Decimal(0),
                 pledge_count=0,
@@ -285,6 +318,9 @@ def net_by_fundraiser(
         entry.pledge_count += 1
         entry.gross += line.commission
 
+    for award in bonuses or []:
+        row(award.fundraiser_name, award.currency).bonuses += award.amount
+
     for candidate in clawbacks:
         if not candidate.confirmed:
             continue
@@ -294,7 +330,8 @@ def net_by_fundraiser(
 
     for entry in acc.values():
         entry.gross = _round(entry.gross)
+        entry.bonuses = _round(entry.bonuses)
         entry.clawbacks = _round(entry.clawbacks)
-        entry.net = _round(entry.gross - entry.clawbacks)
+        entry.net = _round(entry.gross + entry.bonuses - entry.clawbacks)
 
     return sorted(acc.values(), key=lambda e: (e.fundraiser_name, e.currency))

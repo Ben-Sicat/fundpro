@@ -7,6 +7,7 @@ from app.routes.exports import router as exports_router
 from app.routes.health import router as health_router
 from app.routes.payroll import router as payroll_router
 from app.routes.pledges import router as pledges_router
+from app.routes.settings import router as settings_router
 from app.routes.team import router as team_router
 from app.routes.uploads import router as uploads_router
 
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         uploads_router,
         exports_router,
         payroll_router,
+        settings_router,
     ):
         application.include_router(router)
 

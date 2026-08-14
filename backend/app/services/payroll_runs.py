@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.domain.models import PayrollRunDetail
+from app.domain.models import BonusLine, PayrollRunDetail
+from app.services import bonuses as bonus_service
 from app.services import payroll
 from app.services.payroll import PaidCommission, PayrollPledge
 from app.store.memory import Store
@@ -48,6 +49,8 @@ def payroll_view(store: Store) -> list[PayrollPledge]:
                 cancelled=p.cancelled,
                 current_classification=p.current_classification,
                 approved_billing_dates=tuple(sorted(approved_by_serial.get(p.serial_no, []))),
+                frequency=p.frequency or None,
+                verified=p.verified,
             )
         )
     return out
@@ -57,7 +60,13 @@ def derive_run(store: Store, *, as_of: date) -> PayrollRunDetail:
     pledges = payroll_view(store)
     plans = store.settings.commission_plans
     cutoff = payroll.cutoff_for(as_of)
-    lines = payroll.generate_draft_run(pledges, plans, cutoff)
+    lines = payroll.generate_draft_run(
+        pledges,
+        plans,
+        cutoff,
+        require_verification=store.settings.require_verification_for_payroll,
+    )
+    awards = bonus_service.award_bonuses(store.settings.bonus_rules, pledges, lines, cutoff)
 
     # Commission already paid, for clawback detection.
     #
@@ -94,6 +103,19 @@ def derive_run(store: Store, *, as_of: date) -> PayrollRunDetail:
     return PayrollRunDetail(
         cutoff=cutoff,
         lines=lines,
-        nets=payroll.net_by_fundraiser(lines, clawbacks),
+        nets=payroll.net_by_fundraiser(lines, clawbacks, awards),
         clawbacks=clawbacks,
+        bonuses=[
+            BonusLine(
+                fundraiser_name=a.fundraiser_name,
+                currency=a.currency,  # type: ignore[arg-type]
+                rule_id=a.rule_id,
+                rule_name=a.rule_name,
+                basis=a.basis,
+                basis_value=a.basis_value,
+                threshold=a.threshold,
+                amount=a.amount,
+            )
+            for a in awards
+        ],
     )

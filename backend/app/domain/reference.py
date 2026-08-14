@@ -94,6 +94,9 @@ DEFAULT_CARD_TYPE_MAP: dict[str, str] = {
 }
 
 
+CLAWBACK_REASONS = ("cancelled", "failed_final", "unrealized")
+
+
 @dataclass
 class CommissionPlan:
     """How a pledge converts into commission.
@@ -102,10 +105,13 @@ class CommissionPlan:
     historic runs.
 
     OPEN: what drives the multiplier (×1 / ×2.5 / ×3 / ×4). Until the client
-    says, it is a plan field and never inferred from the data.
+    says, it is a plan field and never inferred from the data. `frequency`
+    exists because the samples hint at ×2.5 monthly / ×3 semi-annual — if that
+    turns out to be the rule, it is expressible without a schema change.
     """
 
     id: str
+    name: str = "Default plan"
     #: Percent of the pledge amount. 300 = ×3, the measured mode.
     pct_of_pledge: Decimal = Decimal(300)
     #: Set instead of pct_of_pledge for a fixed per-pledge fee.
@@ -114,12 +120,67 @@ class CommissionPlan:
     trigger_n: int | None = None
     #: How long after payment a pledge going bad still counts as a clawback.
     realization_window_days: int = 90
+    #: Which failures actually reverse a commission. Narrowing this is how the
+    #: client says "we don't claw back for X".
+    clawback_on: tuple[str, ...] = CLAWBACK_REASONS
     effective_from: date = date(2000, 1, 1)
     effective_to: date | None = None
+    #: None = every charity.
     charity_code: str | None = None
+    #: None = every frequency. 'Monthly', 'Quarterly', 'Semi-Annual', 'Annual'.
+    frequency: str | None = None
 
 
 DEFAULT_PLAN = CommissionPlan(id="default")
+
+
+# ---------------------------------------------------------------------------
+# Bonuses
+#
+# The owners flagged that bonuses exist and must be adjustable. Modelled as
+# threshold tiers over a measurable basis rather than as named schemes, so a
+# new bonus is a settings row instead of a code change.
+# ---------------------------------------------------------------------------
+
+BONUS_BASES = (
+    "realized_count",  # donors who actually billed
+    "realized_value",  # pledged value of those donors
+    "realization_rate",  # quality gate, 0–1
+    "signup_count",  # volume regardless of outcome
+)
+
+BONUS_PERIODS = ("cutoff", "month")
+
+
+@dataclass
+class BonusTier:
+    """Reach `threshold` on the rule's basis and earn this."""
+
+    threshold: Decimal
+    #: A fixed amount, in the fundraiser's own currency.
+    flat_amount: Decimal | None = None
+    #: Or a percentage of the commission they earned in the period.
+    pct_of_commission: Decimal | None = None
+
+
+@dataclass
+class BonusRule:
+    """A performance bonus, evaluated per fundraiser per period.
+
+    Only the HIGHEST tier a fundraiser reaches is awarded — tiers are a ladder,
+    not a stack, which is how every incentive scheme in the samples reads.
+    """
+
+    id: str
+    name: str
+    basis: str = "realized_count"
+    period: str = "cutoff"
+    tiers: list[BonusTier] = field(default_factory=list)
+    charity_code: str | None = None
+    effective_from: date = date(2000, 1, 1)
+    active: bool = True
+    #: A quality gate applied on top: no bonus below this realization rate.
+    min_realization_rate: Decimal | None = None
 
 
 @dataclass
@@ -141,6 +202,29 @@ class Settings:
     commission_plans: list[CommissionPlan] = field(
         default_factory=lambda: [DEFAULT_PLAN]
     )
+    #: Empty by default: inventing a bonus scheme would be worse than none.
+    bonus_rules: list[BonusRule] = field(default_factory=list)
+
+    #: Free-text venue names resolved to one canonical site.
+    location_aliases: dict[str, str] = field(default_factory=dict)
+
+    # -- rules the client still owes us a decision on ------------------------
+
+    #: 'submitted' = realized ÷ sent-to-bank. 'signups' = realized ÷ all
+    #: sign-ups. Both are defensible; the business needs one, and the frontend
+    #: currently disagrees with itself, so it is a setting until they choose.
+    realization_basis: str = "submitted"
+
+    #: 'eom_or_30' pays on the 15th and the 30th (28th/29th in February).
+    #: 'nearest_business_day' shifts a weekend pay date back to the Friday.
+    pay_date_rule: str = "eom_or_30"
+
+    #: Require a completed verification call before a pledge can be paid on.
+    require_verification_for_payroll: bool = False
+
+    #: Used only where a single cross-currency total is unavoidable. None means
+    #: refuse to combine, which is the current behaviour everywhere.
+    myr_to_php_rate: Decimal | None = None
 
     # -- lookups ------------------------------------------------------------
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.domain.models import Cutoff, PayrollRunDetail, StatusClassification, StatusCode
+from app.domain.reference import CLAWBACK_REASONS
 from app.routes.deps import ActorDep, StoreDep, TodayDep
 from app.services import payroll, payroll_runs
 
@@ -73,6 +74,7 @@ def upsert_status_code(body: StatusCodeIn, store: StoreDep, actor: ActorDep) -> 
 
 class PlanIn(BaseModel):
     id: str = "default"
+    name: str = "Default plan"
     pct_of_pledge: Decimal = Field(default=Decimal(300), ge=0)
     flat_amount: Decimal | None = None
     trigger_rule: str = Field(
@@ -81,8 +83,13 @@ class PlanIn(BaseModel):
     )
     trigger_n: int | None = Field(default=None, ge=1)
     realization_window_days: int = Field(default=90, ge=0)
+    #: Which failures actually reverse a commission.
+    clawback_on: list[str] = Field(default_factory=lambda: list(CLAWBACK_REASONS))
     effective_from: date = date(2000, 1, 1)
     charity_code: str | None = None
+    #: None = every frequency. Lets "×2.5 monthly / ×3 semi-annual" be
+    #: expressed as data if that turns out to be the client's rule.
+    frequency: str | None = None
 
 
 @router.get("/settings/commission-plans")
@@ -90,6 +97,7 @@ def commission_plans(store: StoreDep) -> list[dict]:
     return [
         {
             "id": p.id,
+            "name": p.name,
             "pctOfPledge": float(p.pct_of_pledge),
             "flatAmount": float(p.flat_amount) if p.flat_amount is not None else None,
             "triggerRule": p.trigger_rule,
@@ -97,6 +105,8 @@ def commission_plans(store: StoreDep) -> list[dict]:
             "realizationWindowDays": p.realization_window_days,
             "effectiveFrom": p.effective_from.isoformat(),
             "charityCode": p.charity_code,
+            "frequency": p.frequency,
+            "clawbackOn": list(p.clawback_on),
         }
         for p in store.settings.commission_plans
     ]
@@ -109,15 +119,22 @@ def upsert_plan(body: PlanIn, store: StoreDep, actor: ActorDep) -> dict:
     if body.trigger_rule == "on_n_billings" and not body.trigger_n:
         raise HTTPException(422, "triggerN is required for on_n_billings")
 
+    unknown = [r for r in body.clawback_on if r not in CLAWBACK_REASONS]
+    if unknown:
+        raise HTTPException(422, f"Unknown clawback reason: {unknown[0]}")
+
     plan = CommissionPlan(
         id=body.id,
+        name=body.name,
         pct_of_pledge=body.pct_of_pledge,
         flat_amount=body.flat_amount,
         trigger_rule=body.trigger_rule,
         trigger_n=body.trigger_n,
         realization_window_days=body.realization_window_days,
+        clawback_on=tuple(body.clawback_on),
         effective_from=body.effective_from,
         charity_code=body.charity_code,
+        frequency=body.frequency,
     )
     plans = store.settings.commission_plans
     for index, existing in enumerate(plans):

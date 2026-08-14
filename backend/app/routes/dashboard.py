@@ -28,7 +28,7 @@ router = APIRouter(tags=["dashboard"])
 
 @router.get("/kpis")
 def kpis(store: StoreDep, filters: FiltersDep, today: TodayDep) -> Kpis:
-    return analytics.kpis(analytics.select(store, filters), today=today)
+    return analytics.kpis(store, analytics.select(store, filters), today=today)
 
 
 @router.get("/timeseries")
@@ -48,7 +48,7 @@ def instrument_split(store: StoreDep, filters: FiltersDep) -> list[InstrumentSpl
 
 @router.get("/age-bands")
 def age_bands(store: StoreDep, filters: FiltersDep, today: TodayDep) -> list[AgeBand]:
-    return analytics.age_bands(analytics.select(store, filters), today=today)
+    return analytics.age_bands(store, analytics.select(store, filters), today=today)
 
 
 @router.get("/frequency-mix")
@@ -59,7 +59,7 @@ def frequency_mix(store: StoreDep, filters: FiltersDep) -> list[LabelledCount]:
 @router.get("/bank-performance")
 def bank_performance(store: StoreDep, filters: FiltersDep) -> list[BankPerformance]:
     """Which banks approve and which fail — asked for on 2026-08-07."""
-    return analytics.bank_performance(analytics.select(store, filters))
+    return analytics.bank_performance(store, analytics.select(store, filters))
 
 
 @router.get("/fundraisers")
