@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import types
 import uuid
 from dataclasses import fields, is_dataclass
@@ -69,6 +70,23 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
+def _pool_max() -> int:
+    """How many connections one process may hold.
+
+    Serverless gets 2: FastAPI runs sync route handlers in a threadpool so one
+    instance can overlap a couple of queries, but anything larger multiplies
+    across instances into the database's connection cap. A long-lived container
+    gets 4 because there is only one of it.
+
+    `DB_POOL_MAX` overrides both.
+    """
+    override = os.environ.get("DB_POOL_MAX")
+    if override and override.isdigit() and int(override) > 0:
+        return int(override)
+    serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    return 2 if serverless else 4
+
+
 class PostgresStore:
     """The Store surface, backed by Postgres.
 
@@ -79,9 +97,32 @@ class PostgresStore:
     landed, which is the behaviour the in-memory store has too.
     """
 
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 4) -> None:
+    def __init__(self, dsn: str, *, min_size: int | None = None, max_size: int | None = None):
+        """Open a pool sized for the environment it is running in.
+
+        `min_size=0` is deliberate and matters most on serverless. Every cold
+        invocation constructs a fresh store, and a non-zero minimum makes the
+        constructor BLOCK opening connections before a single request is
+        served — which showed up as intermittent 500s and outright hangs on
+        Vercel while the same code was fine in a long-lived container. With 0,
+        connections are opened on demand and a warm instance keeps reusing one.
+
+        `max_size` is small for the same reason: on serverless there is one
+        pool per instance and dozens of instances, so a generous per-pool
+        maximum multiplies into the database's connection limit. Supabase's
+        session pooler does the real pooling; this just avoids reconnecting on
+        every call.
+
+        `timeout` makes exhaustion a fast, visible error instead of a request
+        that hangs until the platform kills it.
+        """
         self.pool = ConnectionPool(
-            dsn, min_size=min_size, max_size=max_size, open=True, kwargs={"autocommit": False}
+            dsn,
+            min_size=0 if min_size is None else min_size,
+            max_size=max_size if max_size is not None else _pool_max(),
+            open=True,
+            timeout=10,
+            kwargs={"autocommit": False},
         )
         self.settings = self._load_settings()
 
