@@ -160,7 +160,105 @@ class Store:
             reverse=True,
         )
 
+    # -- uploads ------------------------------------------------------------
+    #
+    # Callers used to append to and index into `self.uploads` directly. A
+    # Postgres-backed store cannot hand out a live mutable list, so every
+    # read and write goes through a method.
+
+    def add_upload(self, upload: Upload) -> None:
+        self.uploads.append(upload)
+
+    def replace_upload(self, upload: Upload) -> None:
+        """Overwrite an upload row in place, matched on id.
+
+        Consolidation writes the upload, dedupes its exceptions, then restates
+        the count — previously by assigning to `uploads[-1]`, which only worked
+        because nothing else could append in between.
+        """
+        for index, existing in enumerate(self.uploads):
+            if existing.id == upload.id:
+                self.uploads[index] = upload
+                return
+        self.uploads.append(upload)
+
+    def all_uploads(self) -> list[Upload]:
+        return list(self.uploads)
+
+    def get_upload(self, upload_id: str) -> Upload | None:
+        return next((u for u in self.uploads if u.id == upload_id), None)
+
+    # -- exceptions (reads) -------------------------------------------------
+
+    def all_exceptions(self) -> list[ImportException]:
+        return list(self.exceptions)
+
+    def resolve_exception(self, exception_id: str) -> ImportException | None:
+        """Mark one review item resolved and return it, or None if unknown."""
+        for index, existing in enumerate(self.exceptions):
+            if existing.id == exception_id:
+                resolved = existing.model_copy(update={"resolved": True})
+                self.exceptions[index] = resolved
+                return resolved
+        return None
+
+    def open_exception_count(self, upload_id: str) -> int:
+        return sum(
+            1 for e in self.exceptions if e.upload_id == upload_id and not e.resolved
+        )
+
+    # -- billing events (reads) ---------------------------------------------
+
+    def all_billing_events(self) -> list[BillingEvent]:
+        return list(self.billing_events)
+
+    # -- export runs --------------------------------------------------------
+
+    def add_export_run(self, run: ExportRun) -> None:
+        self.export_runs.append(run)
+
+    def all_export_runs(self) -> list[ExportRun]:
+        return list(self.export_runs)
+
+    # -- audit (reads) ------------------------------------------------------
+
+    def all_audit(self) -> list[AuditEntry]:
+        return list(self.audit)
+
     # -- team ---------------------------------------------------------------
+
+    def all_fundraisers(self) -> list[FundraiserSeed]:
+        return list(self.fundraisers)
+
+    def add_fundraiser(self, seed: FundraiserSeed) -> None:
+        self.fundraisers.append(seed)
+
+    def save_fundraiser(self, seed: FundraiserSeed) -> None:
+        """Persist edits to a roster entry, matched on identity then code.
+
+        Callers used to mutate the dataclass returned by `find_fundraiser` and
+        rely on it being the same object the store holds. That is true here and
+        false for any database, so the write is now explicit. Matching on
+        identity first means a rename that changes `code` still lands.
+        """
+        for index, existing in enumerate(self.fundraisers):
+            if existing is seed or existing.code == seed.code:
+                self.fundraisers[index] = seed
+                return
+        self.fundraisers.append(seed)
+
+    def all_leaders(self) -> list[str]:
+        return list(self.leaders)
+
+    def add_leader(self, name: str) -> bool:
+        """Add a leader. Returns False if already on the roster."""
+        if name in self.leaders:
+            return False
+        self.leaders.append(name)
+        return True
+
+    def all_sites(self) -> list[SiteSeed]:
+        return list(self.sites)
 
     def find_fundraiser(self, code: str) -> FundraiserSeed | None:
         return next((f for f in self.fundraisers if f.code == code), None)

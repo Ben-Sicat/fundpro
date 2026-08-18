@@ -24,12 +24,12 @@ def payroll_view(store: Store) -> list[PayrollPledge]:
     a late-arriving retry lands.
     """
     approved_by_serial: dict[str, list[date]] = {}
-    for event in store.billing_events:
+    for event in store.all_billing_events():
         if store.settings.classification_for(event.status_id) != "approved":
             continue
         approved_by_serial.setdefault(event.serial_no, []).append(event.status_date)
 
-    tier_of = {f.name: f.tier for f in store.fundraisers}
+    tier_of = {f.name: f.tier for f in store.all_fundraisers()}
 
     out: list[PayrollPledge] = []
     for p in store.all_pledges():

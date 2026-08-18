@@ -83,19 +83,19 @@ async def create_upload(
 
 @router.get("/uploads")
 def list_uploads(store: StoreDep) -> list[Upload]:
-    return sorted(store.uploads, key=lambda u: u.uploaded_at, reverse=True)
+    return sorted(store.all_uploads(), key=lambda u: u.uploaded_at, reverse=True)
 
 
 @router.get("/uploads/{upload_id}/impact")
 def upload_impact(upload_id: str, store: StoreDep) -> UploadImpact:
-    if not any(u.id == upload_id for u in store.uploads):
+    if store.get_upload(upload_id) is None:
         raise HTTPException(404, "No such upload")
     return consolidate.impact_of(store, upload_id)
 
 
 @router.get("/exceptions")
 def list_exceptions(store: StoreDep, resolved: bool | None = None) -> list[ImportException]:
-    rows = store.exceptions
+    rows = store.all_exceptions()
     if resolved is not None:
         rows = [e for e in rows if e.resolved == resolved]
     return sorted(rows, key=lambda e: e.created_at, reverse=True)
@@ -103,10 +103,8 @@ def list_exceptions(store: StoreDep, resolved: bool | None = None) -> list[Impor
 
 @router.post("/exceptions/{exception_id}/resolve")
 def resolve_exception(exception_id: str, store: StoreDep, actor: ActorDep) -> ImportException:
-    for index, exc in enumerate(store.exceptions):
-        if exc.id == exception_id:
-            resolved = exc.model_copy(update={"resolved": True})
-            store.exceptions[index] = resolved
-            store.log(actor, "exception.resolve", f"resolved {exception_id}")
-            return resolved
-    raise HTTPException(404, "No such exception")
+    resolved = store.resolve_exception(exception_id)
+    if resolved is None:
+        raise HTTPException(404, "No such exception")
+    store.log(actor, "exception.resolve", f"resolved {exception_id}")
+    return resolved

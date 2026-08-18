@@ -208,6 +208,8 @@ export const fundraisers = pgTable('fundraisers', {
   employeeCode: text('employee_code').unique(),
   /** e.g. 'FP'. */
   recruiterCode: text('recruiter_code'),
+  /** Performance tier (their STOPLIGHT). NULL until someone grades them. */
+  tier: text('tier'),
   isActive: boolean('is_active').notNull().default(true),
   /** Employment window; end_date stays null while the person is active. */
   startDate: date('start_date'),
@@ -250,7 +252,12 @@ export const sites = pgTable('sites', {
   charityId: uuid('charity_id').references(() => charities.id),
   locationId: uuid('location_id').references(() => locations.id),
   name: text('name').notNull(),
-  startsOn: date('starts_on').notNull(),
+  /**
+   * Nullable since 2026-08-18: a site inferred from a legacy tracker row is
+   * known only by name, and inventing a start date to satisfy NOT NULL would
+   * put fiction in a column reporting filters on.
+   */
+  startsOn: date('starts_on'),
   endsOn: date('ends_on'),
   notes: text('notes'),
 })
@@ -347,7 +354,15 @@ export const pledges = pgTable(
      * populate explicitly on import rather than relying on this default.
      */
     currency: text('currency').notNull().default('PHP'),
+    /** Canonical form ('Monthly'), used for reporting and grouping. */
     frequency: text('frequency').notNull(),
+    /**
+     * Exactly as the source file wrote it ('1', '12', 'Semi-annual'). The
+     * legacy A1 export echoes THIS, because A1's job is to reproduce their
+     * sheet rather than reinterpret it — and `Frequency` in the real files
+     * mixes codes and text.
+     */
+    frequencyRaw: text('frequency_raw'),
     processingBank: text('processing_bank'),
 
     // ---- the seven lifecycle dates (6 = invoices, 7 = payouts) ----
@@ -374,7 +389,39 @@ export const pledges = pgTable(
       () => statusCodes.statusId,
     ),
     currentStatusDate: date('current_status_date'),
+    /**
+     * Classification of `currentStatusId`, denormalized from status_codes for
+     * the same reason the id is: every dashboard filters on it.
+     */
+    currentClassification: text('current_classification'),
     cancelled: boolean('cancelled').notNull().default(false),
+
+    // ---- cancellation provenance ----
+    /**
+     * Why this pledge was cancelled, in the operator's own words. Only ever
+     * set alongside `cancellationDate`.
+     */
+    cancellationReason: text('cancellation_reason'),
+    /**
+     * Where the cancellation came from. 'bank' means a status code in a Status
+     * Report said so; 'manual' means a human recorded it here. Load-bearing:
+     * recomputing state from billing history must not overwrite a decision
+     * somebody typed in.
+     */
+    cancellationSource: text('cancellation_source'),
+    cancelledBy: text('cancelled_by'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+
+    // ---- retry counters, derived from billing_events ----
+    /** Every billing event on this pledge, successful or not. */
+    attempts: integer('attempts').notNull().default(0),
+    /** Attempts the bank rejected — the counter operations watch. */
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    /**
+     * How many attempts it took to get paid, counting the successful one.
+     * NULL while the pledge has never billed.
+     */
+    attemptsToSuccess: integer('attempts_to_success'),
     unrealizedReportMonth: text('unrealized_report_month'),
     csTemplateSubmittedAt: date('cs_template_submitted_at'),
     csTeamActionAt: date('cs_team_action_at'),
@@ -483,9 +530,20 @@ export const importBatches = pgTable(
     sourceType: text('source_type').notNull(),
     filename: text('filename'),
     uploadedBy: uuid('uploaded_by'),
+    /**
+     * Display name of the uploader. Separate from `uploadedBy` because auth is
+     * still credentials-based with no users row to point a uuid at, and losing
+     * who ran an import would gut the audit trail.
+     */
+    uploadedByName: text('uploaded_by_name'),
     rowCount: integer('row_count'),
     matchedCount: integer('matched_count'),
     unmatchedCount: integer('unmatched_count'),
+    /** Records the file created rather than matched. */
+    newRecordCount: integer('new_record_count'),
+    exceptionCount: integer('exception_count'),
+    /** 'consolidated' | 'needs_review' | 'processing' | 'failed'. */
+    status: text('status'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -546,6 +604,10 @@ export const importExceptions = pgTable(
       .references(() => importBatches.id),
     serialNo: text('serial_no'),
     problem: text('problem').notNull(),
+    /** Which file the bad row came from — the first thing an operator asks. */
+    filename: text('filename'),
+    /** Operator-facing explanation, e.g. 'STATUS ID 71 is not in the dictionary'. */
+    detail: text('detail'),
     rawRow: jsonb('raw_row').notNull(),
     resolved: boolean('resolved').notNull().default(false),
     resolvedNote: text('resolved_note'),
@@ -747,11 +809,20 @@ export const exportSchedules = pgTable('export_schedules', {
 
 export const exportRuns = pgTable('export_runs', {
   id: pk(),
-  templateId: uuid('template_id')
-    .notNull()
-    .references(() => exportTemplates.id),
+  /**
+   * Nullable since 2026-08-18. The built-in template catalogue (§4.5) lives in
+   * code and is identified by code, not by an export_templates row, so
+   * requiring the FK meant a built-in export could not be logged at all —
+   * and an unlogged PII export is exactly what the audit rule forbids.
+   */
+  templateId: uuid('template_id').references(() => exportTemplates.id),
+  /** e.g. 'A1'. Identifies a built-in template with no catalogue row. */
+  templateCode: text('template_code'),
+  templateName: text('template_name'),
   scheduleId: uuid('schedule_id').references(() => exportSchedules.id),
   runBy: uuid('run_by'),
+  /** Display name of whoever ran it — see importBatches.uploadedByName. */
+  runByName: text('run_by_name'),
   filtersApplied: jsonb('filters_applied'),
   rowCount: integer('row_count'),
   fileName: text('file_name'),
@@ -776,6 +847,11 @@ export const auditLog = pgTable(
   {
     id: pk(),
     actorId: uuid('actor_id'),
+    /**
+     * Display name of the actor — see importBatches.uploadedByName. An audit
+     * row that cannot say who acted is not an audit row.
+     */
+    actorName: text('actor_name'),
     /** 'import.run' | 'export.run' | 'payroll.approve' | 'settings.update' … */
     action: text('action').notNull(),
     entity: text('entity'),

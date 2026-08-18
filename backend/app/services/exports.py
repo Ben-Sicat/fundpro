@@ -153,7 +153,7 @@ def build_a2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     visible = {p.serial_no for p in analytics.select(store, filters)}
     rows = [
         _status_row(store, event, store.get_pledge(event.serial_no))
-        for event in sorted(store.billing_events, key=lambda e: (e.status_date, e.serial_no))
+        for event in sorted(store.all_billing_events(), key=lambda e: (e.status_date, e.serial_no))
         if event.serial_no in visible
     ]
     return Report(headers=STATUS_REPORT_COLUMNS, rows=rows)
@@ -163,10 +163,10 @@ def build_a3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     """Daily Status Report snapshot — A2 scoped to one upload, plus batch id."""
     upload_id = opts.get("upload_id")
     events = (
-        store.events_from_upload(upload_id) if upload_id else list(store.billing_events)
+        store.events_from_upload(upload_id) if upload_id else store.all_billing_events()
     )
     headers = (*STATUS_REPORT_COLUMNS, "IMPORT BATCH ID", "IMPORTED AT")
-    upload = next((u for u in store.uploads if u.id == upload_id), None)
+    upload = store.get_upload(upload_id)
     imported_at = upload.uploaded_at if upload else None
 
     rows = [
@@ -268,7 +268,7 @@ def build_b4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     rows = [
         [e.id, e.upload_id, e.filename, e.serial_no or "", e.problem, e.detail,
          e.raw_summary, _yes_no(e.resolved), e.created_at]
-        for e in store.exceptions
+        for e in store.all_exceptions()
         if not e.resolved
     ]
     return Report(headers=headers, rows=rows)
@@ -348,7 +348,7 @@ def build_c4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     today: date = opts.get("today") or datetime.now(UTC).date()
     run = payroll_runs.derive_run(store, as_of=today)
     commission_by_serial = {line.serial_no: line.commission for line in run.lines}
-    tier_of = {f.name: f.tier for f in store.fundraisers}
+    tier_of = {f.name: f.tier for f in store.all_fundraisers()}
     plans = store.settings.commission_plans
     view = {p.serial_no: p for p in payroll_runs.payroll_view(store)}
 
@@ -393,7 +393,7 @@ def build_c5(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
 
     today: date = opts.get("today") or datetime.now(UTC).date()
     run = payroll_runs.derive_run(store, as_of=today)
-    tier_of = {f.name: f.tier for f in store.fundraisers}
+    tier_of = {f.name: f.tier for f in store.all_fundraisers()}
 
     headers = (
         "FR Name", "STOPLIGHT", "Currency", "Donors", "Sum of INCENTIVE",
@@ -575,9 +575,9 @@ def catalogue(store: Store, filters: PledgeFilters) -> list[ExportTemplate]:
         if spec.counts == "pledges":
             rows: int | None = matching
         elif spec.counts == "events":
-            rows = len(store.billing_events)
+            rows = len(store.all_billing_events())
         elif spec.counts == "exceptions":
-            rows = sum(1 for e in store.exceptions if not e.resolved)
+            rows = sum(1 for e in store.all_exceptions() if not e.resolved)
         else:
             rows = None
         out.append(

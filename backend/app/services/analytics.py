@@ -408,7 +408,7 @@ def fundraiser_records(store: Store, rows: list[Pledge]) -> list[FundraiserRecor
         by_name[p.fundraiser_name].append(p)
 
     out: list[FundraiserRecord] = []
-    for seed in store.fundraisers:
+    for seed in store.all_fundraisers():
         group = by_name.get(seed.name, [])
         realized = [p for p in group if is_realized(p)]
         value = sum((p.amount for p in group), Decimal(0))
@@ -442,7 +442,7 @@ def leader_records(store: Store, rows: list[Pledge]) -> list[LeaderRecord]:
     records = fundraiser_records(store, rows)
     out: list[LeaderRecord] = []
 
-    for leader in store.leaders:
+    for leader in store.all_leaders():
         team = [f for f in records if leader in f.leader_names]
         signups = sum(f.signups for f in team)
         realized = sum(f.realized for f in team)
@@ -465,7 +465,7 @@ def leader_records(store: Store, rows: list[Pledge]) -> list[LeaderRecord]:
 
 def site_performance(store: Store, rows: list[Pledge]) -> list[SitePerformance]:
     out: list[SitePerformance] = []
-    for site in store.sites:
+    for site in store.all_sites():
         group = [p for p in rows if p.site_name == site.name]
         realized = [p for p in group if is_realized(p)]
         out.append(

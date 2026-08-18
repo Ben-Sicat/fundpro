@@ -33,13 +33,13 @@ class FundraiserIn(BaseModel):
 def _validate(store, body: FundraiserIn, *, existing_code: str | None = None) -> None:
     if any(
         f.code.casefold() == body.code.casefold() and f.code != existing_code
-        for f in store.fundraisers
+        for f in store.all_fundraisers()
     ):
         raise HTTPException(409, f"ID number {body.code} already belongs to someone else")
 
     if not body.leader_names:
         raise HTTPException(422, "Assign at least one leader")
-    unknown = [n for n in body.leader_names if n not in store.leaders]
+    unknown = [n for n in body.leader_names if n not in store.all_leaders()]
     if unknown:
         raise HTTPException(422, f"Unknown leader: {unknown[0]}")
 
@@ -80,7 +80,7 @@ def create_fundraiser(
     body: FundraiserIn, store: StoreDep, filters: FiltersDep, actor: ActorDep
 ) -> FundraiserRecord:
     _validate(store, body)
-    store.fundraisers.append(
+    store.add_fundraiser(
         FundraiserSeed(
             name=body.name.strip(),
             code=body.code.strip(),
@@ -118,6 +118,7 @@ def update_fundraiser(
     seed.active = body.active
     seed.start_date = body.start_date.isoformat() if body.start_date else None
     seed.end_date = body.end_date.isoformat() if body.end_date else None
+    store.save_fundraiser(seed)
 
     store.log(actor, "team.update", f"updated fundraiser {seed.code}")
     return _record(store, seed.code, filters)
@@ -125,7 +126,7 @@ def update_fundraiser(
 
 @router.get("/team/leaders")
 def list_leaders(store: StoreDep) -> list[str]:
-    return sorted(store.leaders)
+    return sorted(store.all_leaders())
 
 
 @router.post("/team/leaders", status_code=201)
@@ -133,7 +134,6 @@ def add_leader(name: str, store: StoreDep, actor: ActorDep) -> list[str]:
     cleaned = name.strip()
     if not cleaned:
         raise HTTPException(422, "Leader name is required")
-    if cleaned not in store.leaders:
-        store.leaders.append(cleaned)
+    if store.add_leader(cleaned):
         store.log(actor, "team.leader.create", f"added leader {cleaned}")
-    return sorted(store.leaders)
+    return sorted(store.all_leaders())

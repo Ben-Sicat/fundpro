@@ -19,6 +19,15 @@ services:
         generateValue: true
       - key: LOG_LEVEL
         value: INFO
-      # Left unset on purpose until Postgres exists — the service runs on its
-      # in-process store and /health reports "not configured" rather than
-      # failing. Add SUPABASE_DB_URL here when the database is provisioned.
+      # Supabase SESSION pooler URI (port 5432, sslmode=require) — NOT the
+      # transaction pooler, which cannot hold the long import transactions.
+      #
+      # `sync: false` means Render prompts for the value in the dashboard
+      # instead of reading it from this file: the URI embeds the database
+      # password and must never be committed.
+      #
+      # The password contains characters that are URI-significant (`@`, `/`,
+      # `=`) and MUST be percent-encoded, or everything after the `@` is
+      # parsed as the host and the connection fails with a confusing error.
+      - key: SUPABASE_DB_URL
+        sync: false

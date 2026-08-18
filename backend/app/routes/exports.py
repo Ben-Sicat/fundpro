@@ -24,7 +24,7 @@ def templates(store: StoreDep, filters: FiltersDep) -> list[ExportTemplate]:
 
 @router.get("/exports/runs")
 def runs(store: StoreDep) -> list[ExportRun]:
-    return sorted(store.export_runs, key=lambda r: r.run_at, reverse=True)
+    return sorted(store.all_export_runs(), key=lambda r: r.run_at, reverse=True)
 
 
 @router.post("/exports/{code}")
@@ -57,7 +57,7 @@ def generate(
         file_name=file_name,
         contains_pii=spec.pii_level != "none",
     )
-    store.export_runs.append(run)
+    store.add_export_run(run)
     # PII-bearing exports are flagged in the audit log, per the security rules.
     store.log(
         actor,
@@ -161,7 +161,7 @@ def build_custom(
         file_name=file_name,
         contains_pii=pii_level != "none",
     )
-    store.export_runs.append(run)
+    store.add_export_run(run)
     # The column list is logged: for a custom export, WHICH columns left the
     # building is the thing an auditor needs, and it names no donor.
     store.log(
@@ -185,4 +185,4 @@ def build_custom(
 
 @router.get("/audit")
 def audit(store: StoreDep, limit: int = 200) -> list[AuditEntry]:
-    return sorted(store.audit, key=lambda a: a.at, reverse=True)[:limit]
+    return sorted(store.all_audit(), key=lambda a: a.at, reverse=True)[:limit]

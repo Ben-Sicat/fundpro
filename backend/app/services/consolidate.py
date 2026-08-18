@@ -41,6 +41,12 @@ class ConsolidationResult:
     exceptions: list[ImportException]
 
 
+#: `app_status` stamped on a record assembled from a bank row. Load-bearing:
+#: it is how `merge_application` recognises a record whose fields are bank
+#: placeholders rather than real application data.
+PROVISIONAL_APP_STATUS = "PROVISIONAL (from bank file)"
+
+
 def _norm_name(value: str | None) -> str:
     """Case- and whitespace-insensitive name key for the secondary check."""
     return " ".join((value or "").split()).casefold()
@@ -211,10 +217,10 @@ def consolidate_status_report(
         exception_count=len(exceptions),
         status="needs_review" if exceptions else "consolidated",
     )
-    store.uploads.append(upload)
+    store.add_upload(upload)
     added = [e for e in exceptions if store.add_exception(e)]
     upload = upload.model_copy(update={"exception_count": len(added)})
-    store.uploads[-1] = upload
+    store.replace_upload(upload)
     store.log(
         uploaded_by,
         "import.status_report",
@@ -238,7 +244,14 @@ def consolidate_apps_tracker(
     *,
     filename: str,
     uploaded_by: str,
+    prefer_existing: bool = False,
 ) -> ConsolidationResult:
+    """Load an Apps Tracker file.
+
+    `prefer_existing` is the legacy-backfill rule — see `merge_application`. It
+    defaults to False so a routine upload still applies the sheet's
+    corrections, which is what an operator re-uploading a fixed row expects.
+    """
     upload_id = store.next_id("upl")
     now = datetime.now(UTC)
     exceptions: list[ImportException] = []
@@ -261,8 +274,15 @@ def consolidate_apps_tracker(
         )
 
     for record in parsed.records:
-        existed = store.get_pledge(record.serial_no) is not None
-        store.upsert_pledge(_pledge_from_apps_record(store, record))
+        existing = store.get_pledge(record.serial_no)
+        existed = existing is not None
+        store.upsert_pledge(
+            merge_application(
+                existing,
+                _pledge_from_apps_record(store, record),
+                prefer_existing=prefer_existing,
+            )
+        )
         if existed:
             updated += 1
         else:
@@ -293,10 +313,10 @@ def consolidate_apps_tracker(
         exception_count=len(exceptions),
         status="needs_review" if exceptions else "consolidated",
     )
-    store.uploads.append(upload)
+    store.add_upload(upload)
     added = [e for e in exceptions if store.add_exception(e)]
     upload = upload.model_copy(update={"exception_count": len(added)})
-    store.uploads[-1] = upload
+    store.replace_upload(upload)
     store.log(
         uploaded_by,
         "import.apps_tracker",
@@ -338,8 +358,103 @@ def _provisional_pledge(store: Store, r: StatusReportRecord) -> Pledge:
         # It is visibly a code, not a person's name, so nobody mistakes it.
         fundraiser_name=r.agent_id or "",
         submitted_at=r.submitted_at,
-        app_status="PROVISIONAL (from bank file)",
+        app_status=PROVISIONAL_APP_STATUS,
     )
+
+
+#: Set by a human, and not reconstructible from billing history. An Apps
+#: Tracker row carries none of these, so a record built from one leaves them
+#: at their defaults — which is why they are carried across explicitly rather
+#: than left to `recompute_pledge_state`, whose `pledge.cancellation_source or
+#: ...` guard cannot help once the value has already been dropped.
+_MANUAL_FIELDS = (
+    "cancellation_reason",
+    "cancellation_source",
+    "cancelled_by",
+    "cancelled_at",
+)
+
+#: Derived from the append-only billing history, never from an application
+#: row. `recompute_pledge_state` restores these immediately after, but only
+#: for pledges that have events — so preserving them here is what keeps a
+#: re-import from blanking the state of a pledge that has none.
+_DERIVED_FIELDS = (
+    "current_status_id",
+    "current_status_description",
+    "current_status_date",
+    "current_classification",
+    "attempts",
+    "failed_attempts",
+    "attempts_to_success",
+    "debit_date",
+)
+
+
+def _is_blank(value: object) -> bool:
+    """Whether a field holds "nothing" rather than a real value.
+
+    Pydantic defaults are the only signal available that a source row said
+    nothing about a field: a missing string arrives as `""`, a missing amount
+    as `Decimal(0)`, a missing count as `0`. There is deliberately no attempt
+    to distinguish "the file said zero" from "the file was silent" — for the
+    fields this runs over (amount, dates, contact details) zero and absent
+    mean the same thing operationally.
+    """
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, bool):
+        return value is False
+    if isinstance(value, Decimal | int):
+        return value == 0
+    return False
+
+
+def merge_application(
+    existing: Pledge | None,
+    incoming: Pledge,
+    *,
+    prefer_existing: bool,
+) -> Pledge:
+    """Combine a freshly-parsed application row with what is already on file.
+
+    `prefer_existing` is the backfill rule (owner's decision, 2026-08-18): when
+    loading historical files, a populated field already in the platform is
+    never modified, and the incoming row only fills gaps. Routine Apps Tracker
+    uploads pass False, because there the sheet is a correction — an operator
+    fixing a mobile number expects the fix to land.
+
+    Two things hold regardless of the flag:
+
+    - A PROVISIONAL record always yields. Its fields are bank placeholders,
+      including a `fundraiser_name` that is really an agent code, so treating
+      them as "populated" would permanently pin every provisional record to
+      partial data. The real Apps Tracker superseding it is the documented
+      contract of `create_missing_from_bank`.
+    - Manual and derived fields are carried across. An application row cannot
+      speak to either, so letting its defaults through is pure data loss.
+    """
+    if existing is None:
+        return incoming
+
+    carried: dict[str, object] = {}
+
+    provisional = existing.app_status == PROVISIONAL_APP_STATUS
+    if prefer_existing and not provisional:
+        for name in type(incoming).model_fields:
+            if name in _DERIVED_FIELDS or name in _MANUAL_FIELDS:
+                continue
+            current = getattr(existing, name)
+            if not _is_blank(current):
+                carried[name] = current
+
+    for name in (*_MANUAL_FIELDS, *_DERIVED_FIELDS):
+        current = getattr(existing, name)
+        if not _is_blank(current):
+            carried[name] = current
+
+    return incoming.model_copy(update=carried) if carried else incoming
 
 
 def _pledge_from_apps_record(store: Store, r: AppsTrackerRecord) -> Pledge:
@@ -496,8 +611,6 @@ def impact_of(store: Store, upload_id: str) -> UploadImpact:
         newly_retrying=count("failed_retryable"),
         newly_failed_final=count("failed_final"),
         newly_cancelled=count("cancelled"),
-        exceptions=sum(
-            1 for e in store.exceptions if e.upload_id == upload_id and not e.resolved
-        ),
+        exceptions=store.open_exception_count(upload_id),
         changed_master=bool(events),
     )
