@@ -1,10 +1,15 @@
 """Load a legacy archive straight into Supabase, from this machine.
 
-    # see what WOULD happen, touching nothing
-    uv run python -m app.migrate_legacy "/path/to/April to July 2026 Data" --dry-run
+Takes either a folder or the .zip exactly as the owner sends it.
+
+    # rehearse: full consolidation, never touches Supabase
+    uv run python -m app.migrate_legacy ~/Downloads/"April to July 2026 Data.zip" --in-memory
 
     # do it
-    uv run python -m app.migrate_legacy "/path/to/April to July 2026 Data"
+    uv run python -m app.migrate_legacy ~/Downloads/"April to July 2026 Data.zip"
+
+Note that `~` only expands when your shell does it — quote the filename, not the
+whole path, or the tilde arrives here literally.
 
 Runs locally and talks to Postgres directly, so it costs nothing to host and is
 not subject to the deployed API's request-size or duration limits — a full-size
@@ -41,10 +46,13 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import zipfile
 from collections import Counter
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from app.config import get_settings
 from app.parsing.apps_tracker import parse_apps_tracker
@@ -335,20 +343,44 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verbose", action="store_true", help="log every file classified")
     args = parser.parse_args(argv)
 
-    root: Path = args.root.expanduser()
-    if not root.is_dir():
-        print(f"Not a directory: {root}")
+    target: Path = args.root.expanduser()
+    if not target.exists():
+        print(f"No such file or directory: {target}")
+        return 2
+    if target.is_file() and target.suffix.lower() != ".zip":
+        print(f"Expected a folder or a .zip archive, got: {target.name}")
+        return 2
+    if not target.is_dir() and not zipfile.is_zipfile(target):
+        print(f"Not a readable zip archive: {target.name}")
         return 2
 
     started = datetime.now(UTC)
     store = build_store(use_memory=args.in_memory or args.dry_run)
-    report = migrate(
-        store,
-        root,
-        dry_run=args.dry_run,
-        limit=args.limit,
-        verbose=args.verbose,
-    )
+
+    # A zip is unpacked to a temporary folder and walked from there. The archive
+    # arrives straight from the owner as a .zip, so requiring a manual unzip
+    # first is a step to forget — and an unpacked copy lying around a shared
+    # machine is real donor PII (RA 10173), which the context manager cleans up.
+    with ExitStack() as stack:
+        if target.is_dir():
+            root = target
+        else:
+            temp = Path(stack.enter_context(TemporaryDirectory(prefix="fundpro-legacy-")))
+            print(f"Unpacking {target.name}…")
+            with zipfile.ZipFile(target) as archive:
+                # extractall sanitizes absolute paths and `..` components, so a
+                # crafted archive cannot write outside the temp folder.
+                archive.extractall(temp)
+            root = temp
+            print("  unpacked to a temporary folder (removed on exit)")
+
+        report = migrate(
+            store,
+            root,
+            dry_run=args.dry_run,
+            limit=args.limit,
+            verbose=args.verbose,
+        )
 
     if not args.dry_run and not args.in_memory:
         store.log(
