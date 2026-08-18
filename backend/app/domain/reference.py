@@ -31,6 +31,26 @@ DEFAULT_STATUS_CODES: list[StatusCode] = [
         description="Billing Failed (DNH - Will retry)",
         classification="failed_retryable",
     ),
+    # Confirmed present in the real bank files: 193 rows across April–July 2026,
+    # the only status ID in that archive we did not already know. 59 and 66 are
+    # the other two — the whole four months uses just these three.
+    #
+    # NDNH is SG's counterpart to DNH (see the reject-code mail forwarded
+    # 2026-08-18): "DNH" is DO NOT HONOR and "NDNH" is every other reject
+    # reason. NDNH work goes back to the recruiter to fix on a first debit, or
+    # to an SG call agent for an anniversary — so the pledge is still live and
+    # expected to bill once repaired, which is why this is retryable rather
+    # than final.
+    #
+    # OPEN: whether "to repair" should count as retryable for the realization
+    # rate is a business decision, not a technical one. Change the
+    # classification here (or in admin settings) if the owners say otherwise —
+    # nothing branches on the status ID itself.
+    StatusCode(
+        status_id=61,
+        description="Billing Failed (NDNH - To repair)",
+        classification="failed_retryable",
+    ),
     StatusCode(status_id=60, description="Insufficient Funds", classification="failed_retryable"),
     StatusCode(status_id=71, description="Card Expired", classification="failed_final"),
     StatusCode(status_id=72, description="Invalid Account Number", classification="failed_final"),

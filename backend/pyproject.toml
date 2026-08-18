@@ -11,6 +11,9 @@ dependencies = [
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.10,<3",
     "openpyxl>=3.1,<3.2",
+    # Legacy .xls (BIFF/OLE2) submissions files. xlrd 2.x reads ONLY .xls,
+    # which is exactly the half openpyxl cannot open.
+    "xlrd>=2.0,<3",
     "python-multipart>=0.0.20,<0.1",
 ]
 

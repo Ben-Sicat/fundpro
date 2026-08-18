@@ -27,6 +27,8 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from app.parsing.xls import open_xls
+
 # Stop after this many consecutive blank rows. Comfortably larger than any
 # formatting gap seen in the samples, small enough that a phantom sheet costs
 # nothing to reject.
@@ -172,6 +174,22 @@ class ReadResult:
 def read_rows(path: Path | str) -> ReadResult:
     """Read the first worksheet whose headers match a known signature."""
     path = Path(path)
+
+    if path.suffix.lower() == ".xls":
+        # Legacy BIFF. openpyxl cannot open these at all, and the client's
+        # daily Submissions files are all of this kind. The adapter presents
+        # the same surface, so every defence below applies unchanged. There is
+        # only one read because BIFF exposes computed values but not formula
+        # text — see app/parsing/xls.py.
+        try:
+            book = open_xls(path)
+        except Exception as exc:
+            raise NoDataSheetError(f"{path.name} could not be opened as a workbook") from exc
+        try:
+            return _read_matching_sheet(book, book)
+        finally:
+            book.close()
+
     try:
         cached = load_workbook(path, read_only=True, data_only=True)
         formulas = load_workbook(path, read_only=True, data_only=False)
