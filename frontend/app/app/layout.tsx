@@ -6,8 +6,21 @@ import { Sidebar, type NavGroup } from '@/components/shell/sidebar'
 import { MobileNav } from '@/components/shell/mobile-nav'
 import { ThemeToggle } from '@/components/shell/theme-toggle'
 import { GridTracer } from '@/components/grid-tracer'
+import { AutoRefresh } from '@/components/shell/auto-refresh'
 import { getExceptions } from '@/lib/data'
 import { initials } from '@/lib/format'
+
+/**
+ * Never prerender, never cache, for any page under /app.
+ *
+ * Reading the session already forces dynamic rendering, so this is belt and
+ * braces — but it is the kind of thing a later refactor silently removes. Every
+ * figure here comes from a live import; a statically prerendered or
+ * revalidate-cached page would show numbers from build time and give no clue it
+ * was doing so.
+ */
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 /**
  * Protected shell. Middleware already gates /app; re-checking here is defence
@@ -109,6 +122,8 @@ export default async function AppLayout({
               Scoped to {actor.charityId}
             </span>
           ) : null}
+
+          <AutoRefresh />
 
           <ThemeToggle />
 
