@@ -18,14 +18,19 @@
  * would be the thing that breaks.
  */
 import Link from 'next/link'
+import { FilterBar } from '@/components/filter-bar'
 import { Badge, Button, Card, CardHeader, SectionTitle, Table, Td, Th, Tr } from '@/components/ui'
 import { BarList } from '@/components/charts/bar-list'
 import { ColumnChart } from '@/components/charts/column-chart'
 import {
   getAgeBands,
+  getCharities,
   getFrequencyMix,
   getFundraiserPerformance,
+  getFundraiserNames,
   getInstrumentSplit,
+  getLeaderNames,
+  getSiteNames,
   getSitePerformance,
   getUploads,
 } from '@/lib/data'
@@ -235,5 +240,39 @@ function UploadStatusBadge({ status }: { status: string }) {
     <Badge tone="warning" dot>
       Needs review
     </Badge>
+  )
+}
+
+
+/**
+ * The filter bar, with the four lists that populate its dropdowns.
+ *
+ * Separated because those lists are reference data for controls, not figures.
+ * Awaiting them alongside the KPIs meant the headline numbers waited on
+ * whichever of the four was slowest — and over a few thousand pledges the
+ * distinct-name queries are not the fast ones.
+ */
+export async function FilterSection({
+  action,
+  current,
+}: {
+  action: string
+  current: Record<string, string | undefined>
+}) {
+  const [charities, fundraisers, leaders, sites] = await Promise.all([
+    getCharities(),
+    getFundraiserNames(),
+    getLeaderNames(),
+    getSiteNames(),
+  ])
+  return (
+    <FilterBar
+      action={action}
+      current={current}
+      charities={charities}
+      fundraisers={fundraisers}
+      leaders={leaders}
+      sites={sites}
+    />
   )
 }

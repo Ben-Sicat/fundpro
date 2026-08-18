@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { auth, signOut } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
@@ -7,7 +8,7 @@ import { MobileNav } from '@/components/shell/mobile-nav'
 import { ThemeToggle } from '@/components/shell/theme-toggle'
 import { GridTracer } from '@/components/grid-tracer'
 import { AutoRefresh } from '@/components/shell/auto-refresh'
-import { getExceptions } from '@/lib/data'
+import { ExceptionBadge } from '@/components/shell/exception-badge'
 import { initials } from '@/lib/format'
 
 /**
@@ -43,8 +44,6 @@ export default async function AppLayout({
   const perms = permissionsFor(actor)
   const isCharityViewer = actor.role === 'charity_viewer'
 
-  const openExceptions = (await getExceptions()).filter((e) => !e.resolved).length
-
   // Nav is filtered by permission; the data layer enforces the same rules, so
   // hiding a link is convenience and never the security boundary.
   const groups: NavGroup[] = [
@@ -66,7 +65,12 @@ export default async function AppLayout({
                 href: '/app/uploads',
                 label: 'Uploads',
                 glyph: '↥',
-                badge: openExceptions || undefined,
+                // Streamed, so the shell paints without waiting on it.
+                badge: (
+                  <Suspense fallback={null}>
+                    <ExceptionBadge />
+                  </Suspense>
+                ),
               },
             ]
           : []),

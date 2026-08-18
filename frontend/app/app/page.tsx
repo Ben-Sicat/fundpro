@@ -6,21 +6,22 @@ import { StatTile } from '@/components/charts/stat-tile'
 import { AreaChart } from '@/components/charts/area-chart'
 import { Donut } from '@/components/charts/donut'
 import { ChartSkeleton, ListSkeleton, TableSkeleton } from '@/components/charts/skeleton'
-import { ActivitySection, MixSection, PerformanceSection } from './sections'
-import { FilterBar } from '@/components/filter-bar'
+import { ActivitySection, FilterSection, MixSection, PerformanceSection } from './sections'
 import { filtersFromParams } from '@/lib/filters'
-import {
-  getCharities,
-  getFundraiserNames,
-  getKpis,
-  getLeaderNames,
-  getResultsSplit,
-  getSiteNames,
-  getTimeSeries,
-} from '@/lib/data'
+import { getKpis, getResultsSplit, getTimeSeries } from '@/lib/data'
 import { count, moneyCompact, percent } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Overview · FundPro' }
+
+/** Same height as the real filter bar, so the KPI row below does not jump. */
+function FilterBarSkeleton() {
+  return (
+    <span
+      aria-hidden
+      className="block h-[7.5rem] animate-pulse rounded-[var(--r-md)] border border-line bg-surface-2"
+    />
+  )
+}
 
 /**
  * Results split colours.
@@ -49,16 +50,11 @@ export default async function OverviewPage({
 
   // Only what the first screenful needs. Everything below streams in behind a
   // Suspense boundary, so one slow endpoint no longer holds up the whole page.
-  const [kpis, series, split, charities, fundraiserNames, leaderNames, siteNames] =
-    await Promise.all([
-      getKpis(f),
-      getTimeSeries(f),
-      getResultsSplit(f),
-      getCharities(),
-      getFundraiserNames(),
-      getLeaderNames(),
-      getSiteNames(),
-    ])
+  const [kpis, series, split] = await Promise.all([
+    getKpis(f),
+    getTimeSeries(f),
+    getResultsSplit(f),
+  ])
 
   const submitted = split.reduce((s, d) => s + d.value, 0)
 
@@ -90,14 +86,11 @@ export default async function OverviewPage({
         </div>
       </div>
 
-      <FilterBar
-        action="/app"
-        current={sp}
-        charities={charities}
-        fundraisers={fundraiserNames}
-        leaders={leaderNames}
-        sites={siteNames}
-      />
+      {/* The dropdown options are reference data for controls, not figures —
+          no reason for the headline numbers to wait on them. */}
+      <Suspense fallback={<FilterBarSkeleton />}>
+        <FilterSection action="/app" current={sp} />
+      </Suspense>
 
       {/* ---- KPI row. Realization rate is the headline metric. ---- */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">

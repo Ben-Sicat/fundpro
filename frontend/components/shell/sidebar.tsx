@@ -9,7 +9,11 @@ export interface NavItem {
   label: string
   /** Single glyph — keeps the bundle free of an icon dependency. */
   glyph: string
-  badge?: number
+  /**
+   * A node, not a number, so the layout can hand over a Suspense-wrapped
+   * Server Component and stop blocking the whole shell on the count.
+   */
+  badge?: React.ReactNode
 }
 
 export interface NavGroup {
