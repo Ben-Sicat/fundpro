@@ -5,7 +5,12 @@ import { Button, Card, CardHeader } from '@/components/ui'
 import { StatTile } from '@/components/charts/stat-tile'
 import { AreaChart } from '@/components/charts/area-chart'
 import { Donut } from '@/components/charts/donut'
-import { ChartSkeleton, ListSkeleton, TableSkeleton } from '@/components/charts/skeleton'
+import {
+  ChartSkeleton,
+  ListSkeleton,
+  SectionTitleSkeleton,
+  TableSkeleton,
+} from '@/components/charts/skeleton'
 import { ActivitySection, FilterSection, MixSection, PerformanceSection } from './sections'
 import { filtersFromParams } from '@/lib/filters'
 import { getKpis, getResultsSplit, getTimeSeries } from '@/lib/data'
@@ -18,7 +23,7 @@ function FilterBarSkeleton() {
   return (
     <span
       aria-hidden
-      className="block h-[7.5rem] animate-pulse rounded-[var(--r-md)] border border-line bg-surface-2"
+      className="block h-[7.5rem] animate-pulse rounded-[var(--r)] border border-line bg-surface-2"
     />
   )
 }
@@ -175,9 +180,12 @@ export default async function OverviewPage({
           position mid-read. */}
       <Suspense
         fallback={
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <ListSkeleton rows={8} title="Top fundraisers" />
-            <ListSkeleton rows={8} title="Sites" />
+          <div>
+            <SectionTitleSkeleton width="w-24" />
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <ListSkeleton rows={8} title="top fundraisers" />
+              <ListSkeleton rows={8} title="sites" />
+            </div>
           </div>
         }
       >
@@ -186,17 +194,27 @@ export default async function OverviewPage({
 
       <Suspense
         fallback={
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <ChartSkeleton height={180} title="Age bands" />
-            <ChartSkeleton height={180} title="Instrument" />
-            <ListSkeleton rows={3} title="Frequency mix" />
+          <div>
+            <SectionTitleSkeleton width="w-40" />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <ChartSkeleton height={180} title="age bands" />
+              <ChartSkeleton height={180} title="instrument" />
+              <ListSkeleton rows={3} title="frequency mix" />
+            </div>
           </div>
         }
       >
         <MixSection filters={f} />
       </Suspense>
 
-      <Suspense fallback={<TableSkeleton rows={4} cols={6} />}>
+      <Suspense
+        fallback={
+          <div>
+            <SectionTitleSkeleton width="w-32" />
+            <TableSkeleton rows={4} cols={6} withHeader={false} />
+          </div>
+        }
+      >
         <ActivitySection />
       </Suspense>
     </div>

@@ -1,23 +1,29 @@
 /**
- * Placeholders for a section whose data has not arrived yet.
+ * Placeholders that occupy exactly the space their real counterparts will.
  *
- * The Overview fans out thirteen API calls. Awaiting them all before painting
- * anything means the whole page waits on the slowest one and then appears at
- * once — which reads as "nothing is loading", and during an import as "the
- * charts are not updating". Streaming each section behind its own boundary
- * turns that into panels that fill in, and a skeleton is what stops the fill-in
- * looking like a layout bug.
+ * A skeleton whose box differs from the content it stands in for causes the
+ * reflow it exists to prevent — the page jumps when data lands and you lose
+ * your place mid-read. So these mirror the real components rather than
+ * approximating them, and the numbers below are transcribed from the source:
  *
- * Deliberately NOT a client component and deliberately no animation library:
- * these render on the server inside a Suspense fallback, before any JavaScript
- * for the section has run.
+ *   StatTile     panel, min-h-[7.5rem], p-5           (charts/stat-tile.tsx)
+ *   Card         panel, overflow-hidden, p-5          (ui/index.tsx)
+ *   CardHeader   border-b, px-5 py-4, -mx-5 -mt-5 mb-5
+ *                title text-[15px], subtitle text-[13px]
+ *   SectionTitle mb-4, label text-[11px], hairline rule
+ *   AreaChart    height 220 (default)                 (charts/area-chart.tsx)
+ *   ColumnChart  height 180 (default)                 (charts/column-chart.tsx)
+ *   BarList      ol space-y-2.5; per row a text-xs
+ *                line then an h-1.5 rounded bar       (charts/bar-list.tsx)
+ *   Td           border-b, px-3 py-2.5, text-[13px]
  *
- * Every box reserves the SAME height as the real content it stands in for. A
- * fallback shorter than its content shifts the page when it resolves, which is
- * worse than a blank space — you lose your scroll position mid-read.
+ * If any of those change, these must change with them.
+ *
+ * All Server Components with no animation library: they render inside Suspense
+ * fallbacks, before any JavaScript for the section has run.
  */
 
-function Shimmer({
+function Bar({
   className = '',
   style,
 }: {
@@ -33,19 +39,74 @@ function Shimmer({
   )
 }
 
-/** A row of KPI tiles. `count` must match the real row or the grid reflows. */
-export function StatRowSkeleton({ count = 5 }: { count?: number }) {
+/** Mirrors `panel` + `p-5`, so borders and radius line up with a real Card. */
+function Panel({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return <div className={`panel overflow-hidden p-5 ${className}`}>{children}</div>
+}
+
+/**
+ * Mirrors CardHeader, including the bleed that pulls the divider to the panel
+ * edge. Without the bleed the rule sits 20px in and the swap is visible.
+ */
+function HeaderBlock({ withAction = false }: { withAction?: boolean }) {
   return (
-    <div
-      className="grid grid-cols-2 gap-3 lg:grid-cols-5"
-      role="status"
-      aria-label="Loading figures"
-    >
+    <div className="-mx-5 -mt-5 mb-5 flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+      <div className="min-w-0 flex-1">
+        {/* text-[15px] leading-tight ≈ 18px; text-[13px] leading-snug ≈ 17px. */}
+        <Bar className="h-[18px] w-48 max-w-full" />
+        <Bar className="mt-1 h-[17px] w-72 max-w-full" />
+      </div>
+      {withAction ? <Bar className="h-5 w-24 shrink-0" /> : null}
+    </div>
+  )
+}
+
+/** Mirrors SectionTitle: label plus the hairline that runs to the edge. */
+export function SectionTitleSkeleton({ width = 'w-28' }: { width?: string }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Bar className={`h-[11px] ${width}`} />
+      <Bar className="h-3 w-40" />
+      <div className="hidden h-px flex-1 bg-line sm:block" />
+    </div>
+  )
+}
+
+/**
+ * The KPI row. `count` and the grid MUST match the page: the Overview runs five
+ * tiles at `grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5`, and a
+ * different column count reflows every tile.
+ */
+export function StatRowSkeleton({
+  count = 5,
+  className = 'grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5',
+}: {
+  count?: number
+  className?: string
+}) {
+  return (
+    <div className={className} role="status" aria-label="Loading figures">
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="rounded-[var(--r-md)] border border-line bg-surface-2 p-4">
-          <Shimmer className="h-2.5 w-20" />
-          <Shimmer className="mt-3 h-7 w-24" />
-          <Shimmer className="mt-3 h-2 w-28" />
+        <div
+          key={i}
+          className="panel relative flex min-h-[7.5rem] flex-col justify-between p-5"
+        >
+          {/* hud text-[10px] */}
+          <Bar className="h-[10px] w-24" />
+          <div className="mt-4 flex items-end justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {/* figure text-[30px]–[36px], leading-none */}
+              <Bar className="h-[30px] w-28 max-w-full" />
+              {/* hint text-[12px], mt-2.5 */}
+              <Bar className="mt-2.5 h-3 w-32 max-w-full" />
+            </div>
+          </div>
         </div>
       ))}
     </div>
@@ -53,84 +114,122 @@ export function StatRowSkeleton({ count = 5 }: { count?: number }) {
 }
 
 /**
- * A chart card. `height` is the plot area in pixels and should match the chart
- * it replaces, for the reflow reason above.
+ * A chart inside a Card. `height` is the plot box and must match the chart it
+ * replaces — 220 for AreaChart, 180 for ColumnChart.
  */
 export function ChartSkeleton({
   height = 220,
-  title = 'Loading',
+  title = 'chart',
+  withAction = false,
 }: {
   height?: number
   title?: string
+  withAction?: boolean
 }) {
   return (
-    <div
-      className="rounded-[var(--r-md)] border border-line bg-surface-2 p-4"
-      role="status"
-      aria-label={`${title}…`}
-    >
-      <Shimmer className="h-3 w-40" />
-      <Shimmer className="mt-2 h-2 w-56" />
-      <div className="mt-5 flex items-end gap-1.5" style={{ height }}>
-        {/* A rough silhouette rather than one grey block: it reads as "a chart
-            is coming" instead of "something failed to render". */}
-        {[38, 62, 45, 78, 55, 88, 66, 92, 71, 58, 84, 49].map((h, i) => (
-          <Shimmer key={i} className="flex-1" style={{ height: `${h}%` }} />
-        ))}
+    <Panel>
+      <div role="status" aria-label={`Loading ${title}`}>
+        <HeaderBlock withAction={withAction} />
+        {/* A silhouette rather than one grey block: it reads as "a chart is
+            coming" instead of "something failed to render". */}
+        <div className="flex items-end gap-1.5" style={{ height }}>
+          {[38, 62, 45, 78, 55, 88, 66, 92, 71, 58, 84, 49].map((h, i) => (
+            <Bar key={i} className="flex-1" style={{ height: `${h}%` }} />
+          ))}
+        </div>
       </div>
-    </div>
+    </Panel>
   )
 }
 
-/** A ranked list (top fundraisers, sites, frequency mix). */
+/**
+ * A BarList inside a Card. Each row is the label line plus the 6px bar, spaced
+ * 2.5 (10px) apart, so `rows` maps 1:1 onto the real list length.
+ */
 export function ListSkeleton({
-  rows = 6,
-  title = 'Loading',
+  rows = 8,
+  title = 'list',
 }: {
   rows?: number
   title?: string
 }) {
   return (
-    <div
-      className="rounded-[var(--r-md)] border border-line bg-surface-2 p-4"
-      role="status"
-      aria-label={`${title}…`}
-    >
-      <Shimmer className="h-3 w-36" />
-      <Shimmer className="mt-2 h-2 w-52" />
-      <ul className="mt-4 space-y-3">
-        {Array.from({ length: rows }, (_, i) => (
-          <li key={i} className="flex items-center gap-3">
-            <Shimmer className="size-4 shrink-0 rounded-full" />
-            <Shimmer className="h-2.5 flex-1" />
-            <Shimmer className="h-2.5 w-12 shrink-0" />
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Panel>
+      <div role="status" aria-label={`Loading ${title}`}>
+        <HeaderBlock />
+        <ol className="space-y-2.5">
+          {Array.from({ length: rows }, (_, i) => (
+            <li key={i}>
+              <div className="mb-1 flex items-baseline justify-between gap-3">
+                <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <Bar className="h-3 w-4 shrink-0" />
+                  <Bar className="h-3 w-full max-w-[14rem]" />
+                </span>
+                <Bar className="h-3 w-10 shrink-0" />
+              </div>
+              {/* The real track is h-1.5 and fully rounded. */}
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3" />
+            </li>
+          ))}
+        </ol>
+      </div>
+    </Panel>
   )
 }
 
-/** A table (recent uploads, applications). */
-export function TableSkeleton({ rows = 4, cols = 6 }: { rows?: number; cols?: number }) {
+/**
+ * A Donut card. The ring is fluid and square, so the placeholder is a circle
+ * sized by aspect-ratio rather than a fixed pixel box.
+ */
+export function DonutSkeleton({ title = 'breakdown' }: { title?: string }) {
   return (
-    <div
-      className="rounded-[var(--r-md)] border border-line bg-surface-2 p-4"
-      role="status"
-      aria-label="Loading table"
-    >
-      <div className="flex gap-3 border-b border-line pb-2">
-        {Array.from({ length: cols }, (_, i) => (
-          <Shimmer key={i} className="h-2 flex-1" />
-        ))}
+    <Panel>
+      <div role="status" aria-label={`Loading ${title}`}>
+        <HeaderBlock />
+        <div className="flex flex-col items-center gap-4">
+          <span
+            aria-hidden
+            className="aspect-square w-full max-w-[11rem] animate-pulse rounded-full bg-surface-3"
+          />
+          <Bar className="h-4 w-24" />
+        </div>
       </div>
-      {Array.from({ length: rows }, (_, r) => (
-        <div key={r} className="flex gap-3 border-b border-line py-3 last:border-0">
-          {Array.from({ length: cols }, (_, c) => (
-            <Shimmer key={c} className="h-2.5 flex-1" />
+    </Panel>
+  )
+}
+
+/**
+ * A Table inside a Card. Header row is `pb-2.5 pt-1` over a strong border; body
+ * rows are `py-2.5` with a hairline, matching Th/Td exactly.
+ */
+export function TableSkeleton({
+  rows = 4,
+  cols = 6,
+  withHeader = true,
+}: {
+  rows?: number
+  cols?: number
+  withHeader?: boolean
+}) {
+  return (
+    <Panel>
+      <div role="status" aria-label="Loading table">
+        {withHeader ? <HeaderBlock /> : null}
+        <div className="-mx-5 px-5">
+          <div className="flex gap-3 border-b border-line-strong pb-2.5 pt-1">
+            {Array.from({ length: cols }, (_, i) => (
+              <Bar key={i} className="h-[10px] flex-1" />
+            ))}
+          </div>
+          {Array.from({ length: rows }, (_, r) => (
+            <div key={r} className="flex gap-3 border-b border-line py-2.5">
+              {Array.from({ length: cols }, (_, c) => (
+                <Bar key={c} className="h-[17px] flex-1" />
+              ))}
+            </div>
           ))}
         </div>
-      ))}
-    </div>
+      </div>
+    </Panel>
   )
 }
