@@ -1,44 +1,25 @@
 /**
  * DATA ACCESS SEAM.
  *
- * Every page reads its data through these functions and nothing else. Today
- * they return mock data synchronously-but-async; when the Python preprocessing
- * API exists, each body becomes a `fetch` and no component changes.
+ * Every page reads its data through these functions and nothing else.
  *
- * Keeping them async now is deliberate: if they were sync, every call site
- * would need rewriting the day the API lands.
+ * There is ONE implementation: the Python processing service, via `./remote`,
+ * with every response Zod-checked on arrival. There is deliberately no mock
+ * fallback any more.
  *
- *   const res = await fetch(`${process.env.PREPROCESS_API_URL}/pledges?...`, {
- *     headers: { Authorization: `Bearer ${process.env.PREPROCESS_API_KEY}` },
- *     next: { revalidate: 60 },
- *   })
- *   return PledgeSchema.array().parse(await res.json())
+ * WHY THE MOCK IS GONE. While the UI was being built ahead of the backend, a
+ * seeded dataset stood in for it. Once the service was wired up, that fallback
+ * became a liability: a page could quietly render invented donors and
+ * plausible-looking totals that came from nowhere, which is exactly what
+ * happened after the first live upload — real figures next to fabricated ones,
+ * with nothing on screen distinguishing them. Every number in this app now
+ * traces back to a file somebody uploaded.
  *
- * Validate responses with Zod at that boundary — the Python service is a
- * separate deployable and its payload is untrusted input.
+ * With no fallback, an unconfigured or unreachable service is an ERROR rather
+ * than an empty page. That is the honest outcome: "we cannot reach the
+ * service" and "you have not uploaded anything yet" are different states and
+ * must not look alike.
  */
-import {
-  BILLING_EVENTS,
-  DONORS,
-  EXCEPTIONS,
-  EXPORT_RUNS,
-  EXPORT_TEMPLATES,
-  FUNDRAISERS,
-  LEADERS,
-  PAYROLL_RUNS,
-  PLEDGES,
-  PLEDGE_NOTES,
-  STATUS_CODES,
-  UPLOADS,
-  computeFundraiserPerformance,
-  computeFundraiserRecords,
-  computeKpis,
-  computeLeaderRecords,
-  computeSitePerformance,
-  computeTimeSeries,
-  type FundraiserRecord,
-  type LeaderRecord,
-} from '@/lib/mock/dataset'
 import {
   DEFAULT_PLAN,
   clawbackCandidatesFor,
@@ -51,6 +32,9 @@ import {
   type PayoutLine,
   type PayrollPledge,
 } from '@/lib/services/payroll'
+import { backendEnabled } from '@/lib/api/client'
+import * as remote from './remote'
+import type { PledgeFilters } from './filters'
 import {
   PRESETS,
   suggestionsFor,
@@ -60,441 +44,241 @@ import {
 import type {
   BillingEvent,
   Donor,
+  ExportField,
   ExportRun,
   ExportTemplate,
   FundraiserPerformance,
+  FundraiserRecord,
   ImportException,
   Kpis,
+  LeaderRecord,
   PayrollRun,
   Pledge,
   PledgeNote,
   SitePerformance,
-  StatusClassification,
   StatusCode,
   TimePoint,
   Upload,
 } from '@/lib/types'
 
-/** Which of the seven lifecycle dates a date filter applies to. */
-export type DateBasis =
-  | 'signupDate'
-  | 'submittedAt'
-  | 'debitDate'
-  | 'verifiedAt'
-  | 'cancellationDate'
-  | 'invoicedDate'
-  | 'payoutDate'
+// Re-exported so every existing `from '@/lib/data'` import keeps working.
+export {
+  DATE_BASIS_LABELS,
+  type DateBasis,
+  type PledgeFilters,
+} from './filters'
 
-export const DATE_BASIS_LABELS: Record<DateBasis, string> = {
-  signupDate: 'Sign-up date',
-  submittedAt: 'Submitted to bank',
-  debitDate: 'Debit date',
-  verifiedAt: 'Verification date',
-  cancellationDate: 'Cancellation date',
-  invoicedDate: 'Invoice date',
-  payoutDate: 'Payroll date',
-}
-
-export interface PledgeFilters {
-  q?: string
-  charityCode?: string
-  status?: 'realized' | 'retrying' | 'failed' | 'cancelled' | 'pending'
-  fundraiserName?: string
-  siteName?: string
-  /** Matches any fundraiser who reports to this leader, primary or not. */
-  leaderName?: string
-  /** Verification-call gate: false selects the backlog still awaiting a call. */
-  verified?: boolean
-  basis?: DateBasis
-  from?: string
-  to?: string
-}
+export type { FundraiserRecord, LeaderRecord } from '@/lib/types'
 
 /**
- * Every leader a fundraiser reports to. The pledge row stores only the primary
- * leader, so filtering on that alone would hide the second team a shared
- * fundraiser belongs to.
+ * Fail loudly when the service is not configured.
  *
- * Read live rather than cached in a module-level Map: recruitment happens
- * while the process is running, and a Map built at import time would not know
- * about anyone hired since.
+ * Returning empty data here would render as "no applications yet", which is a
+ * lie when the truth is "nobody set PREPROCESS_API_URL". The error boundary
+ * showing this message is the correct outcome.
  */
-const leadersOf = (name: string): string[] =>
-  FUNDRAISERS.find((f) => f.name === name)?.leaderNames ?? []
-
-function matches(p: Pledge, f: PledgeFilters): boolean {
-  if (f.q) {
-    const q = f.q.toLowerCase()
-    const hit =
-      p.serialNo.toLowerCase().includes(q) ||
-      p.donorName.toLowerCase().includes(q) ||
-      p.fundraiserName.toLowerCase().includes(q) ||
-      p.donorEmail.toLowerCase().includes(q)
-    if (!hit) return false
+function requireBackend(): void {
+  if (!backendEnabled()) {
+    throw new Error(
+      'The processing service is not configured. Set PREPROCESS_API_URL and ' +
+        'PREPROCESS_API_KEY, then reload.',
+    )
   }
-  if (f.charityCode && p.charityCode !== f.charityCode) return false
-  if (f.fundraiserName && p.fundraiserName !== f.fundraiserName) return false
-  if (f.siteName && p.siteName !== f.siteName) return false
-  if (f.leaderName && !leadersOf(p.fundraiserName).includes(f.leaderName)) return false
-  if (f.verified !== undefined && p.verified !== f.verified) return false
-
-  if (f.status) {
-    const realized = p.debitDate !== null && !p.cancelled
-    const cls = p.currentClassification
-    const ok =
-      f.status === 'realized'
-        ? realized
-        : f.status === 'retrying'
-          ? cls === 'failed_retryable'
-          : f.status === 'failed'
-            ? cls === 'failed_final'
-            : f.status === 'cancelled'
-              ? p.cancelled
-              : p.submittedAt === null
-    if (!ok) return false
-  }
-
-  if (f.basis && (f.from || f.to)) {
-    const v = p[f.basis]
-    if (!v) return false
-    if (f.from && v < f.from) return false
-    if (f.to && v > f.to) return false
-  }
-  return true
 }
 
+// ---------------------------------------------------------------------------
+// Applications
+// ---------------------------------------------------------------------------
+
 export async function getPledges(filters: PledgeFilters = {}): Promise<Pledge[]> {
-  return PLEDGES.filter((p) => matches(p, filters))
+  requireBackend()
+  return remote.getPledges(filters)
 }
 
 export async function getPledge(serialNo: string): Promise<Pledge | null> {
-  return PLEDGES.find((p) => p.serialNo === serialNo) ?? null
+  requireBackend()
+  return remote.getPledge(serialNo)
 }
 
 export async function getBillingEvents(serialNo: string): Promise<BillingEvent[]> {
-  return BILLING_EVENTS.filter((e) => e.serialNo === serialNo).sort((a, b) =>
-    a.statusDate.localeCompare(b.statusDate),
-  )
+  requireBackend()
+  return remote.getBillingEvents(serialNo)
 }
 
-/** Caller remarks for one application, newest first. */
 export async function getPledgeNotes(serialNo: string): Promise<PledgeNote[]> {
-  return PLEDGE_NOTES.filter((n) => n.serialNo === serialNo).sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  )
+  requireBackend()
+  return remote.getPledgeNotes(serialNo)
 }
 
-/**
- * Append a caller remark. Notes are a thread, never an overwrite — the same
- * append-only discipline as billing_events. Callers must have already checked
- * authorization (the Server Action does); this is the storage step only.
- */
 export async function addPledgeNote(input: {
   serialNo: string
   author: string
   text: string
 }): Promise<PledgeNote> {
-  const note: PledgeNote = {
-    id: `note_${input.serialNo}_u${PLEDGE_NOTES.length}`,
-    serialNo: input.serialNo,
-    author: input.author,
-    createdAt: new Date().toISOString(),
-    text: input.text,
-  }
-  PLEDGE_NOTES.push(note)
-  return note
+  requireBackend()
+  return remote.addPledgeNote(input)
 }
+
+export async function getDonors(q?: string): Promise<Donor[]> {
+  requireBackend()
+  return remote.getDonors(q)
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
 
 export async function getKpis(filters: PledgeFilters = {}): Promise<Kpis> {
-  return computeKpis(PLEDGES.filter((p) => matches(p, filters)))
+  requireBackend()
+  return remote.getKpis(filters)
 }
 
-export async function getTimeSeries(
-  filters: PledgeFilters = {},
-): Promise<TimePoint[]> {
-  return computeTimeSeries(PLEDGES.filter((p) => matches(p, filters)))
+export async function getTimeSeries(filters: PledgeFilters = {}): Promise<TimePoint[]> {
+  requireBackend()
+  return remote.getTimeSeries(filters)
 }
 
 export async function getFundraiserPerformance(
   filters: PledgeFilters = {},
 ): Promise<FundraiserPerformance[]> {
-  return computeFundraiserPerformance(PLEDGES.filter((p) => matches(p, filters)))
+  requireBackend()
+  return remote.getFundraiserPerformance(filters)
 }
 
 export async function getSitePerformance(
   filters: PledgeFilters = {},
 ): Promise<SitePerformance[]> {
-  return computeSitePerformance(PLEDGES.filter((p) => matches(p, filters)))
+  requireBackend()
+  return remote.getSitePerformance(filters)
 }
 
-/** Approved / retrying / failed-final / cancelled split of submitted rows. */
-export async function getResultsSplit(filters: PledgeFilters = {}): Promise<
-  { label: string; value: number; classification: string }[]
-> {
-  const rows = PLEDGES.filter((p) => matches(p, filters)).filter(
-    (p) => p.submittedAt !== null,
-  )
-  const count = (fn: (p: Pledge) => boolean) => rows.filter(fn).length
-  return [
-    {
-      label: 'Approved',
-      value: count((p) => p.debitDate !== null && !p.cancelled),
-      classification: 'approved',
-    },
-    {
-      label: 'Retrying',
-      value: count((p) => p.currentClassification === 'failed_retryable'),
-      classification: 'failed_retryable',
-    },
-    {
-      label: 'Failed final',
-      value: count((p) => p.currentClassification === 'failed_final'),
-      classification: 'failed_final',
-    },
-    {
-      label: 'Cancelled',
-      value: count((p) => p.cancelled),
-      classification: 'cancelled',
-    },
-  ].filter((d) => d.value > 0)
+export async function getResultsSplit(filters: PledgeFilters = {}) {
+  requireBackend()
+  return remote.getResultsSplit(filters)
 }
 
-/** Approval rate per payment instrument — the CC vs Debit question. */
-export async function getInstrumentSplit(filters: PledgeFilters = {}): Promise<
-  { label: string; count: number; approvalRate: number }[]
-> {
-  const rows = PLEDGES.filter((p) => matches(p, filters))
-  return (['CREDIT CARD', 'DEBIT CARD'] as const).map((inst) => {
-    const list = rows.filter((p) => p.instrumentType === inst)
-    const submitted = list.filter((p) => p.submittedAt !== null)
-    const realized = list.filter((p) => p.debitDate !== null && !p.cancelled)
-    return {
-      label: inst === 'CREDIT CARD' ? 'Credit card' : 'Debit card',
-      count: list.length,
-      approvalRate: submitted.length ? realized.length / submitted.length : 0,
-    }
-  })
+export async function getInstrumentSplit(filters: PledgeFilters = {}) {
+  requireBackend()
+  return remote.getInstrumentSplit(filters)
 }
 
-/** Age bands with realization rate — 25–30 is the typical acquisition band. */
-export async function getAgeBands(filters: PledgeFilters = {}): Promise<
-  { band: string; count: number; realizationRate: number }[]
-> {
-  const rows = PLEDGES.filter((p) => matches(p, filters))
-  const bands: [string, number, number][] = [
-    ['18–24', 18, 24],
-    ['25–30', 25, 30],
-    ['31–40', 31, 40],
-    ['41–50', 41, 50],
-    ['51+', 51, 200],
-  ]
-  const ageOf = (dob: string) =>
-    Math.floor(
-      (new Date('2026-07-27').getTime() - new Date(dob).getTime()) /
-        (365.25 * 86400000),
-    )
-  return bands.map(([band, lo, hi]) => {
-    const list = rows.filter((p) => {
-      const a = ageOf(p.donorDob)
-      return a >= lo && a <= hi
-    })
-    const submitted = list.filter((p) => p.submittedAt !== null)
-    const realized = list.filter((p) => p.debitDate !== null && !p.cancelled)
-    return {
-      band,
-      count: list.length,
-      realizationRate: submitted.length ? realized.length / submitted.length : 0,
-    }
-  })
+export async function getAgeBands(filters: PledgeFilters = {}) {
+  requireBackend()
+  return remote.getAgeBands(filters)
 }
 
-export async function getFrequencyMix(
-  filters: PledgeFilters = {},
-): Promise<{ label: string; value: number }[]> {
-  const rows = PLEDGES.filter((p) => matches(p, filters))
-  return (['Monthly', 'Quarterly', 'Semi-Annual', 'Annual'] as const)
-    .map((f) => ({ label: f, value: rows.filter((p) => p.frequency === f).length }))
-    .filter((d) => d.value > 0)
+export async function getFrequencyMix(filters: PledgeFilters = {}) {
+  requireBackend()
+  return remote.getFrequencyMix(filters)
 }
+
+export async function getBankPerformance(filters: PledgeFilters = {}) {
+  requireBackend()
+  return remote.getBankPerformance(filters)
+}
+
+// ---------------------------------------------------------------------------
+// Uploads
+// ---------------------------------------------------------------------------
 
 export async function getUploads(): Promise<Upload[]> {
-  return [...UPLOADS].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
-}
-
-// ---------------------------------------------------------------------------
-// Export presets
-// ---------------------------------------------------------------------------
-
-/**
- * Presets with a live row count.
- *
- * Counting is cheap because a preset IS a filter — so the UI can say "214 rows,
- * contains PII" before anyone generates a file, instead of producing an empty
- * workbook to find out.
- */
-export async function getPresetSummaries(): Promise<
-  (ExportPreset & { rows: number | null })[]
-> {
-  const openExceptions = EXCEPTIONS.filter((e) => !e.resolved).length
-
-  return PRESETS.map((preset) => {
-    // Count from the collection the report is actually built on. A wrong count
-    // is worse than none: "Import Exceptions — 420 rows" when six rows failed
-    // sends someone hunting for a problem that does not exist.
-    let rows: number | null
-    if (preset.aggregate) {
-      rows = null // not row-per-application; no comparable figure
-    } else {
-      switch (preset.countsFrom) {
-        case 'events':
-          rows = BILLING_EVENTS.length
-          break
-        case 'exceptions':
-          rows = openExceptions
-          break
-        case 'per-upload':
-          rows = null // only meaningful once a batch is chosen
-          break
-        default:
-          rows = PLEDGES.filter((p) => matches(p, preset.filter)).length
-      }
-    }
-    return { ...preset, rows }
-  })
-}
-
-/**
- * What one upload changed, derived from the billing events it carried.
- *
- * This is real derivation, not a stored summary: the events know which upload
- * they arrived in, so the impact is recomputed from the append-only history.
- */
-export async function getUploadImpact(uploadId: string): Promise<UploadImpact> {
-  const events = BILLING_EVENTS.filter((e) => e.uploadId === uploadId)
-  const byClass = (cls: StatusClassification) =>
-    events.filter(
-      (e) =>
-        STATUS_CODES.find((s) => s.statusId === e.statusId)?.classification === cls,
-    ).length
-
-  const exceptions = EXCEPTIONS.filter(
-    (e) => e.uploadId === uploadId && !e.resolved,
-  ).length
-
-  const base = {
-    uploadId,
-    newlyApproved: byClass('approved'),
-    newlyRetrying: byClass('failed_retryable'),
-    newlyFailedFinal: byClass('failed_final'),
-    newlyCancelled: byClass('cancelled'),
-    exceptions,
-    changedMaster: events.length > 0,
-  }
-
-  return { ...base, suggested: suggestionsFor(base) }
+  requireBackend()
+  return remote.getUploads()
 }
 
 export async function getExceptions(): Promise<ImportException[]> {
-  return [...EXCEPTIONS].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  requireBackend()
+  return remote.getExceptions()
 }
 
-export async function getDonors(q?: string): Promise<Donor[]> {
-  const rows = q
-    ? DONORS.filter(
-        (d) =>
-          d.fullName.toLowerCase().includes(q.toLowerCase()) ||
-          d.email.toLowerCase().includes(q.toLowerCase()),
-      )
-    : DONORS
-  return [...rows].sort((a, b) => b.pledgeCount - a.pledgeCount)
+export async function getUploadImpact(uploadId: string): Promise<UploadImpact> {
+  requireBackend()
+  return remote.getUploadImpact(uploadId)
 }
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
 
 export async function getExportTemplates(): Promise<ExportTemplate[]> {
-  return EXPORT_TEMPLATES
+  requireBackend()
+  return remote.getExportTemplates()
+}
+
+export async function getExportFields(): Promise<ExportField[]> {
+  requireBackend()
+  return remote.getExportFields()
 }
 
 export async function getExportRuns(): Promise<ExportRun[]> {
-  return EXPORT_RUNS
+  requireBackend()
+  return remote.getExportRuns()
 }
 
-export async function getPayrollRuns(): Promise<PayrollRun[]> {
-  return PAYROLL_RUNS
+export async function getPresetSummaries(): Promise<
+  (ExportPreset & { rows: number | null })[]
+> {
+  requireBackend()
+  return remote.getPresetSummaries()
 }
+
+export { PRESETS, suggestionsFor, type ExportPreset, type UploadImpact }
+
+// ---------------------------------------------------------------------------
+// Reference
+// ---------------------------------------------------------------------------
 
 export async function getStatusCodes(): Promise<StatusCode[]> {
-  return STATUS_CODES
+  requireBackend()
+  return remote.getStatusCodes()
 }
 
 export async function getCharities(): Promise<string[]> {
-  return Array.from(new Set(PLEDGES.map((p) => p.charityCode))).sort()
+  requireBackend()
+  return remote.getCharities()
 }
 
 export async function getFundraiserNames(): Promise<string[]> {
-  return Array.from(new Set(PLEDGES.map((p) => p.fundraiserName))).sort()
+  requireBackend()
+  return remote.getFundraiserNames()
 }
 
 export async function getSiteNames(): Promise<string[]> {
-  return Array.from(new Set(PLEDGES.map((p) => p.siteName))).sort()
+  requireBackend()
+  return remote.getSiteNames()
 }
 
 // ---------------------------------------------------------------------------
-// Payroll — derived, not mocked
+// Payroll
 // ---------------------------------------------------------------------------
 
 /**
- * A payroll run computed by lib/services/payroll.ts from the actual pledge
- * data, rather than the canned figures in the mock dataset.
+ * Approved, locked runs.
  *
- * This matters beyond the demo: payroll is the most error-prone thing the team
- * does by hand, so the numbers on screen must come from the same tested rules
- * that a real run would use. A screen showing plausible-but-invented totals is
- * worse than no screen.
+ * Always empty: nothing has been approved through this platform yet, and the
+ * service derives the CURRENT draft rather than storing history. Once approval
+ * persists, this becomes a real call.
  */
-export async function getDerivedPayrollRun(asOf = '2026-07-28'): Promise<{
-  cutoff: Cutoff
-  lines: PayoutLine[]
-  nets: FundraiserNet[]
-  clawbacks: ClawbackCandidate[]
-}> {
-  // Approved billing dates per serial, for the on_n_billings trigger.
-  const approvedBySerial = new Map<string, string[]>()
-  for (const e of BILLING_EVENTS) {
-    const cls = STATUS_CODES.find((s) => s.statusId === e.statusId)?.classification
-    if (cls !== 'approved') continue
-    const list = approvedBySerial.get(e.serialNo) ?? []
-    list.push(e.statusDate)
-    approvedBySerial.set(e.serialNo, list)
-  }
+export async function getPayrollRuns(): Promise<PayrollRun[]> {
+  return []
+}
 
-  const payrollPledges: PayrollPledge[] = PLEDGES.map((p) => ({
-    serialNo: p.serialNo,
-    fundraiserName: p.fundraiserName,
-    charityCode: p.charityCode,
-    amount: p.amount,
-    currency: p.currency,
-    signupDate: p.signupDate,
-    submittedAt: p.submittedAt,
-    debitDate: p.debitDate,
-    cancellationDate: p.cancellationDate,
-    cancelled: p.cancelled,
-    approvedBillingDates: (approvedBySerial.get(p.serialNo) ?? []).sort(),
-    currentClassification: p.currentClassification,
-  }))
+export async function getDerivedPayrollRun(asOf = '2026-07-28') {
+  requireBackend()
+  return remote.getDerivedPayrollRun(asOf)
+}
 
-  const cutoff = cutoffFor(asOf)
-  const plans = [DEFAULT_PLAN]
-  const lines = generateDraftRun(payrollPledges, plans, cutoff)
-
-  // Already-paid commissions, for clawback detection.
-  const paid = PLEDGES.filter((p) => p.payoutDate && p.commissionAmount).map((p) => ({
-    serialNo: p.serialNo,
-    commission: p.commissionAmount!,
-    paidOn: p.payoutDate!,
-    currency: p.currency,
-  }))
-  const clawbacks = clawbackCandidatesFor(paid, payrollPledges, plans)
-
-  return { cutoff, lines, nets: netByFundraiser(lines, clawbacks), clawbacks }
+export {
+  DEFAULT_PLAN,
+  clawbackCandidatesFor,
+  cutoffFor,
+  generateDraftRun,
+  netByFundraiser,
+  type ClawbackCandidate,
+  type Cutoff,
+  type FundraiserNet,
+  type PayoutLine,
+  type PayrollPledge,
 }
 
 // ---------------------------------------------------------------------------
@@ -504,26 +288,30 @@ export async function getDerivedPayrollRun(asOf = '2026-07-28'): Promise<{
 export async function getFundraiserRecords(
   filters: PledgeFilters = {},
 ): Promise<FundraiserRecord[]> {
-  return computeFundraiserRecords(PLEDGES.filter((p) => matches(p, filters)))
+  requireBackend()
+  return remote.getFundraiserRecords(filters)
 }
 
 export async function getLeaderRecords(
   filters: PledgeFilters = {},
 ): Promise<LeaderRecord[]> {
-  return computeLeaderRecords(PLEDGES.filter((p) => matches(p, filters)))
+  requireBackend()
+  return remote.getLeaderRecords(filters)
 }
 
 export async function getLeaderNames(): Promise<string[]> {
-  return (await getLeaderRecords()).map((l) => l.name)
+  requireBackend()
+  return remote.getAllLeaderNames()
 }
 
-/** Every leader on the books, including any with an empty team. */
 export async function getAllLeaderNames(): Promise<string[]> {
-  return [...LEADERS].sort()
+  requireBackend()
+  return remote.getAllLeaderNames()
 }
 
 export async function getFundraiser(code: string): Promise<FundraiserRecord | null> {
-  return (await getFundraiserRecords()).find((f) => f.code === code) ?? null
+  requireBackend()
+  return remote.getFundraiser(code)
 }
 
 export interface FundraiserInput {
@@ -539,6 +327,11 @@ export interface FundraiserInput {
  * Field-level validation, shared by create and update so the two cannot drift.
  * Returns a map of field → message; empty means valid.
  *
+ * Pure: the caller supplies the roster to check uniqueness against, rather
+ * than this module reaching for one. The service re-runs these same rules and
+ * is the authority; this pass exists so the form can show a field-level error
+ * without a round trip.
+ *
  * `existingCode` is the record being edited, excluded from the uniqueness
  * check so saving someone without changing their ID is not a clash with
  * themselves.
@@ -546,6 +339,8 @@ export interface FundraiserInput {
 export function validateFundraiser(
   input: FundraiserInput,
   existingCode?: string,
+  roster: { code: string }[] = [],
+  leaderNames: string[] = [],
 ): Record<string, string> {
   const errors: Record<string, string> = {}
 
@@ -553,16 +348,20 @@ export function validateFundraiser(
   if (!input.code.trim()) {
     errors.code = 'ID number is required.'
   } else if (
-    FUNDRAISERS.some(
-      (f) => f.code.toLowerCase() === input.code.trim().toLowerCase() && f.code !== existingCode,
+    roster.some(
+      (f) =>
+        f.code.toLowerCase() === input.code.trim().toLowerCase() &&
+        f.code !== existingCode,
     )
   ) {
     errors.code = `ID number ${input.code.trim()} already belongs to someone else.`
   }
 
   if (input.leaderNames.length === 0) errors.leaderNames = 'Assign at least one leader.'
-  for (const leader of input.leaderNames) {
-    if (!LEADERS.includes(leader)) errors.leaderNames = `Unknown leader: ${leader}.`
+  if (leaderNames.length > 0) {
+    for (const leader of input.leaderNames) {
+      if (!leaderNames.includes(leader)) errors.leaderNames = `Unknown leader: ${leader}.`
+    }
   }
 
   if (!input.startDate) errors.startDate = 'Start date is required.'
@@ -584,46 +383,14 @@ export function validateFundraiser(
 }
 
 export async function createFundraiser(input: FundraiserInput): Promise<FundraiserRecord> {
-  const errors = validateFundraiser(input)
-  if (Object.keys(errors).length) throw new Error(Object.values(errors)[0])
-
-  FUNDRAISERS.push({
-    name: input.name.trim(),
-    code: input.code.trim(),
-    leaderNames: [...input.leaderNames],
-    active: input.active,
-    startDate: input.startDate,
-    endDate: input.endDate,
-  })
-  return (await getFundraiser(input.code.trim()))!
+  requireBackend()
+  return remote.createFundraiser(input)
 }
 
 export async function updateFundraiser(
   code: string,
   input: FundraiserInput,
 ): Promise<FundraiserRecord> {
-  const existing = FUNDRAISERS.find((f) => f.code === code)
-  if (!existing) throw new Error(`No fundraiser with ID ${code}.`)
-
-  const errors = validateFundraiser(input, code)
-  if (Object.keys(errors).length) throw new Error(Object.values(errors)[0])
-
-  // Pledges reference a fundraiser by NAME, so a rename would orphan every
-  // sign-up they have made. Carry the history across with them.
-  const previousName = existing.name
-  const nextName = input.name.trim()
-  if (previousName !== nextName) {
-    for (const p of PLEDGES) {
-      if (p.fundraiserName === previousName) p.fundraiserName = nextName
-    }
-  }
-
-  existing.name = nextName
-  existing.code = input.code.trim()
-  existing.leaderNames = [...input.leaderNames]
-  existing.active = input.active
-  existing.startDate = input.startDate
-  existing.endDate = input.endDate
-
-  return (await getFundraiser(existing.code))!
+  requireBackend()
+  return remote.updateFundraiser(code, input)
 }

@@ -2,11 +2,14 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge, Button, Card, CardHeader, Table, Td, Textarea, Th, Tr } from '@/components/ui'
 import { StatusBadge } from '@/components/status-badge'
+import { LifecycleRail } from '@/components/lifecycle-rail'
+import { RetryTicker } from '@/components/retry-ticker'
+import { CancellationForm } from '@/components/cancellation-form'
 import { getBillingEvents, getPledge, getPledgeNotes } from '@/lib/data'
 import { auth } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
 import { age, date, dateTime, expiry, money, daysAgo, initials } from '@/lib/format'
-import { addNoteAction } from './actions'
+import { addNoteAction, setCancellationAction } from './actions'
 
 export async function generateMetadata({
   params,
@@ -43,16 +46,17 @@ export default async function PledgeDetailPage({
   const canUseNotes = session!.user.role !== 'charity_viewer'
   const canSeePayment = perms.includes('see_payment')
   const canSeePayroll = perms.includes('see_payroll')
+  const canEditReference = perms.includes('edit_reference')
 
   // The seven lifecycle dates, in order — the backbone of all reporting.
   const lifecycle = [
-    { n: 1, label: 'Sign-up', value: pledge.signupDate, note: 'Acquired in the field' },
-    { n: 2, label: 'Submitted to bank', value: pledge.submittedAt, note: 'Lag here is inherent' },
-    { n: 3, label: 'Debit', value: pledge.debitDate, note: 'The money moment' },
-    { n: 4, label: 'Verification', value: pledge.verifiedAt, note: 'Donor phoned and confirmed' },
-    { n: 5, label: 'Cancellation', value: pledge.cancellationDate, note: 'If cancelled' },
-    { n: 6, label: 'Invoice', value: pledge.invoicedDate, note: 'Billed to the charity' },
-    { n: 7, label: 'Payroll', value: pledge.payoutDate, note: 'Commission paid' },
+    { label: 'Sign-up', value: pledge.signupDate, note: 'Acquired in the field' },
+    { label: 'Submitted to bank', value: pledge.submittedAt, note: 'Lag here is inherent' },
+    { label: 'Debit', value: pledge.debitDate, note: 'The money moment' },
+    { label: 'Verification', value: pledge.verifiedAt, note: 'Donor phoned and confirmed' },
+    { label: 'Cancellation', value: pledge.cancellationDate, note: 'If cancelled' },
+    { label: 'Invoice', value: pledge.invoicedDate, note: 'Billed to the charity' },
+    { label: 'Payroll', value: pledge.payoutDate, note: 'Commission paid' },
   ]
 
   return (
@@ -72,60 +76,26 @@ export default async function PledgeDetailPage({
           </div>
           <div className="flex gap-2">
             {!pledge.verified ? (
-              <Button variant="primary" size="sm">
+              <Button variant="primary" size="sm" disabled title="Coming soon">
                 ☎ Record verification call
               </Button>
             ) : null}
-            <Button size="sm">↧ Export row</Button>
+            {/* B1 is the lifecycle report; filtered to this one serial. */}
+            <a href={`/api/exports/B1?q=${encodeURIComponent(pledge.serialNo)}`} download>
+              <Button size="sm">↧ Export row</Button>
+            </a>
           </div>
         </div>
       </div>
 
-      {/* ---- Lifecycle rail ---- */}
+      {/* ---- Lifecycle rail: the signature element. One track, nodes on it,
+              the travelled part lit. See components/lifecycle-rail.tsx ---- */}
       <Card>
         <CardHeader
           title="Lifecycle"
           subtitle="All seven dates are first-class and independently filterable"
         />
-        <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-          {lifecycle.map((step) => {
-            const done = Boolean(step.value)
-            return (
-              <li
-                key={step.n}
-                className={`rounded-lg border p-3 ${
-                  done ? 'border-line bg-surface-2' : 'border-dashed border-line'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`grid size-4 place-items-center rounded-full text-[9px] font-bold ${
-                      done
-                        ? 'bg-accent text-on-accent'
-                        : 'bg-surface-3 text-muted'
-                    }`}
-                    aria-hidden
-                  >
-                    {step.n}
-                  </span>
-                  <span className="text-[11px] font-medium text-secondary">
-                    {step.label}
-                  </span>
-                </div>
-                <p
-                  className={`tabular mt-1.5 text-sm font-semibold ${
-                    done ? 'text-primary' : 'text-muted'
-                  }`}
-                >
-                  {date(step.value)}
-                </p>
-                <p className="mt-0.5 text-[10px] leading-tight text-muted">
-                  {step.note}
-                </p>
-              </li>
-            )
-          })}
-        </ol>
+        <LifecycleRail steps={lifecycle} format={date} />
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -150,7 +120,29 @@ export default async function PledgeDetailPage({
             <Row label="Fundraiser">{pledge.fundraiserName}</Row>
             <Row label="Leader">{pledge.leaderName}</Row>
             <Row label="App status">{pledge.appStatus}</Row>
+            <Row label="Billing attempts">
+              <RetryTicker
+                attempts={pledge.attempts}
+                failedAttempts={pledge.failedAttempts}
+                attemptsToSuccess={pledge.attemptsToSuccess}
+              />
+            </Row>
           </dl>
+
+          {/* Cancellation is editable here because most cancellations never
+              reach a bank status file — see components/cancellation-form. */}
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="hud mb-2.5 text-[10px] text-muted">Cancellation</p>
+            <CancellationForm
+              cancellationDate={pledge.cancellationDate}
+              cancellationReason={pledge.cancellationReason}
+              source={pledge.cancellationSource}
+              cancelledBy={pledge.cancelledBy}
+              formattedDate={date(pledge.cancellationDate)}
+              action={setCancellationAction.bind(null, pledge.serialNo)}
+              canEdit={canEditReference}
+            />
+          </div>
         </Card>
 
         {/* ---- Donor: role-gated ---- */}

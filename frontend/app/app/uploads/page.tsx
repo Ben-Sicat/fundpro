@@ -13,9 +13,19 @@ import {
 import { StatTile } from '@/components/charts/stat-tile'
 import { UploadImpactPanel } from '@/components/upload-impact'
 import { getExceptions, getUploadImpact, getUploads } from '@/lib/data'
-import { count, date } from '@/lib/format'
+import { count, date, dateTime } from '@/lib/format'
+import { UploadForm } from '@/components/upload-form'
+import { uploadAction, resolveExceptionAction, addStatusCodeAction } from './actions'
+import { FixStatusCode } from '@/components/fix-status-code'
+import { backendEnabled } from '@/lib/api/client'
 
 export const metadata: Metadata = { title: 'Uploads · FundPro' }
+
+/** Pull the offending code out of "STATUS ID 61 is not in the dictionary…". */
+function statusIdIn(detail: string): number | null {
+  const match = /STATUS ID (\d+)/.exec(detail)
+  return match ? Number(match[1]) : null
+}
 
 const PROBLEM_LABELS: Record<string, string> = {
   no_matching_pledge: 'Not on file',
@@ -51,7 +61,7 @@ export default async function UploadsPage() {
       </div>
 
       {/* ---- Dropzone ---- */}
-      <Card glass className="border-dashed">
+      <Card className="border-dashed">
         <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
           <span
             className="grid size-11 place-items-center rounded-xl text-lg text-on-accent shadow-sm"
@@ -64,20 +74,13 @@ export default async function UploadsPage() {
           </span>
           <div>
             <p className="text-sm font-medium text-primary">
-              Drop an .xlsx or .csv here
+              Drop an .xlsx file here
             </p>
             <p className="mt-1 text-xs text-muted">
 A bank Status Report or an Apps Tracker — we work out which it is.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="primary" size="sm">
-              Choose file
-            </Button>
-            <Button variant="ghost" size="sm">
-              View column mapping
-            </Button>
-          </div>
+          <UploadForm action={uploadAction} enabled={backendEnabled()} />
           <p className="max-w-md text-[11px] leading-relaxed text-muted">
 Messy spreadsheets are fine. Anything we cannot read is set aside for review instead of stopping the whole file.
           </p>
@@ -101,10 +104,10 @@ Messy spreadsheets are fine. Anything we cannot read is set aside for review ins
           <SectionTitle hint="what this file changed">
             Last consolidation
           </SectionTitle>
-          <Card glass>
+          <Card>
             <CardHeader
               title="What changed"
-              subtitle={`Consolidated ${date(latest.uploadedAt)} by ${latest.uploadedBy}`}
+              subtitle={`Consolidated ${dateTime(latest.uploadedAt)} by ${latest.uploadedBy}`}
             />
             <UploadImpactPanel impact={latestImpact} filename={latest.filename} />
           </Card>
@@ -148,12 +151,17 @@ Messy spreadsheets are fine. Anything we cannot read is set aside for review ins
                     <Td className="text-xs">{e.filename}</Td>
                     <Td align="right">
                       <span className="flex justify-end gap-1.5">
-                        {e.problem === 'unknown_status_id' ? (
-                          <Button size="sm" variant="primary">
-                            Add status code
-                          </Button>
+                        {e.problem === 'unknown_status_id' && statusIdIn(e.detail) ? (
+                          <FixStatusCode
+                            statusId={statusIdIn(e.detail)!}
+                            action={addStatusCodeAction.bind(null, statusIdIn(e.detail)!)}
+                          />
                         ) : null}
-                        <Button size="sm">Resolve</Button>
+                        <form action={resolveExceptionAction.bind(null, e.id)}>
+                          <Button size="sm" type="submit">
+                            Resolve
+                          </Button>
+                        </form>
                       </span>
                     </Td>
                   </Tr>
@@ -224,7 +232,10 @@ Messy spreadsheets are fine. Anything we cannot read is set aside for review ins
                     )}
                   </Td>
                   <Td align="right">
-                    <Button size="sm">↧ Snapshot</Button>
+                    {/* A3 — the bank schema scoped to this one upload. */}
+                    <a href={`/api/exports/A3?upload_id=${u.id}`} download>
+                      <Button size="sm">↧ Snapshot</Button>
+                    </a>
                   </Td>
                 </Tr>
               ))}

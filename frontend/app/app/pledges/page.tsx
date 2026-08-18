@@ -88,7 +88,7 @@ Every donor sign-up, with the latest word from the bank.
 
       {/* Filters in one row above the table. GET form so every filtered view is
           a shareable URL and survives a refresh. */}
-      <Card glass>
+      <Card>
         <form className="flex flex-wrap items-end gap-3" action="/app/pledges">
           <div className="min-w-[16rem] flex-1">
             <label htmlFor="q" className="mb-1.5 block text-xs font-medium text-secondary">

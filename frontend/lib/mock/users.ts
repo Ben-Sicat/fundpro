@@ -1,4 +1,12 @@
 /**
+ * ONLY REMAINING MOCK IN THE APP: sign-in accounts.
+ *
+ * The mock DATA layer is gone — every figure in the product now comes from
+ * a file somebody uploaded. These are credentials, not data, and they exist
+ * because Supabase auth is not wired up yet. Delete this file the moment it
+ * is, and never seed it with a real person.
+ */
+/**
  * Mock user store — the app runs with no database while the UI is mock-driven.
  *
  * Passwords are plaintext HERE ONLY because these are throwaway demo accounts

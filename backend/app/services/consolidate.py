@@ -30,7 +30,7 @@ from app.domain.models import (
     UploadImpact,
 )
 from app.parsing.apps_tracker import AppsParseResult, AppsTrackerRecord
-from app.parsing.status_report import ParseResult, RowException
+from app.parsing.status_report import ParseResult, RowException, StatusReportRecord
 from app.store.memory import Store
 
 
@@ -106,20 +106,11 @@ def consolidate_status_report(
         )
 
     matched = 0
+    provisional = 0
     touched: set[str] = set()
 
     for record in parsed.records:
         pledge = store.get_pledge(record.serial_no)
-
-        if pledge is None:
-            fail(
-                None,
-                problem="no_matching_pledge",
-                serial=record.serial_no,
-                detail="SERIAL NO is not in the applications master",
-                raw=f"{record.serial_no} · STATUS ID {record.status_id}",
-            )
-            continue
 
         if not store.settings.knows_status(record.status_id):
             fail(
@@ -133,6 +124,20 @@ def consolidate_status_report(
                 raw=f"{record.serial_no} · STATUS ID {record.status_id}",
             )
             continue
+
+        if pledge is None:
+            if not store.settings.create_missing_from_bank:
+                fail(
+                    None,
+                    problem="no_matching_pledge",
+                    serial=record.serial_no,
+                    detail="SERIAL NO is not in the applications master",
+                    raw=f"{record.serial_no} · STATUS ID {record.status_id}",
+                )
+                continue
+            pledge = _provisional_pledge(store, record)
+            store.upsert_pledge(pledge)
+            provisional += 1
 
         # Secondary validation. A serial that matches but a donor who does not
         # means the file is misaligned — updating silently would corrupt the
@@ -187,6 +192,9 @@ def consolidate_status_report(
         )
         if added:
             touched.add(record.serial_no)
+        # This row is through, so whatever complaint it raised before is now
+        # answered.
+        store.clear_exceptions_for(record.serial_no)
 
     for serial in touched:
         recompute_pledge_state(store, serial)
@@ -199,23 +207,24 @@ def consolidate_status_report(
         uploaded_by=uploaded_by,
         row_count=parsed.total,
         matched_count=matched,
-        new_record_count=0,
+        new_record_count=provisional,
         exception_count=len(exceptions),
         status="needs_review" if exceptions else "consolidated",
     )
     store.uploads.append(upload)
-    store.exceptions.extend(exceptions)
+    added = [e for e in exceptions if store.add_exception(e)]
+    upload = upload.model_copy(update={"exception_count": len(added)})
+    store.uploads[-1] = upload
     store.log(
         uploaded_by,
         "import.status_report",
         f"{filename}: {parsed.total} rows, {matched} matched, {len(exceptions)} exceptions",
     )
 
-    return ConsolidationResult(
-        upload=upload,
-        impact=impact_of(store, upload_id),
-        exceptions=exceptions,
+    impact = impact_of(store, upload_id).model_copy(
+        update={"new_pledges": provisional}
     )
+    return ConsolidationResult(upload=upload, impact=impact, exceptions=exceptions)
 
 
 # ---------------------------------------------------------------------------
@@ -285,7 +294,9 @@ def consolidate_apps_tracker(
         status="needs_review" if exceptions else "consolidated",
     )
     store.uploads.append(upload)
-    store.exceptions.extend(exceptions)
+    added = [e for e in exceptions if store.add_exception(e)]
+    upload = upload.model_copy(update={"exception_count": len(added)})
+    store.uploads[-1] = upload
     store.log(
         uploaded_by,
         "import.apps_tracker",
@@ -296,6 +307,39 @@ def consolidate_apps_tracker(
     impact = impact_of(store, upload_id)
     impact = impact.model_copy(update={"new_pledges": created})
     return ConsolidationResult(upload=upload, impact=impact, exceptions=exceptions)
+
+
+def _provisional_pledge(store: Store, r: StatusReportRecord) -> Pledge:
+    """An application assembled from a BANK row.
+
+    Only used when `create_missing_from_bank` is on. The bank file carries the
+    donor name, amount, frequency, card and charity — enough to place the
+    billing outcome — but not the email, date of birth, site or fundraiser, so
+    the record is marked PROVISIONAL and cannot be attributed. Importing the
+    real Apps Tracker later overwrites it with the full record.
+    """
+    settings = store.settings
+    return Pledge(
+        serial_no=r.serial_no,
+        donor_name=r.donor_name or "",
+        charity_code=settings.canonical_charity(r.charity_code),
+        amount=r.amount if r.amount is not None else Decimal(0),
+        currency="MYR" if r.serial_no.startswith("FEH") else "PHP",
+        frequency=settings.canonical_frequency(r.frequency),
+        frequency_raw=r.frequency or "",
+        instrument_type=settings.canonical_card_type(r.instrument_hint),
+        masked_pan=r.masked_pan or "",
+        expiry=r.expiry or "",
+        processing_bank=r.bank or "",
+        agent_id=r.agent_id or "",
+        # The bank names no fundraiser, but it does give the recruiter's agent
+        # code. Using it keeps the row attributable instead of collapsing every
+        # provisional record into one blank row in the per-fundraiser charts.
+        # It is visibly a code, not a person's name, so nobody mistakes it.
+        fundraiser_name=r.agent_id or "",
+        submitted_at=r.submitted_at,
+        app_status="PROVISIONAL (from bank file)",
+    )
 
 
 def _pledge_from_apps_record(store: Store, r: AppsTrackerRecord) -> Pledge:
@@ -324,6 +368,7 @@ def _pledge_from_apps_record(store: Store, r: AppsTrackerRecord) -> Pledge:
         # (FINDINGS §3.2) — kept per-pledge rather than assumed globally.
         currency="MYR" if country == "MY" else "PHP",
         frequency=settings.canonical_frequency(r.frequency),
+        frequency_raw=r.frequency,
         instrument_type=settings.canonical_card_type(r.card_type),
         masked_pan=r.masked_pan,
         expiry=r.expiry,
@@ -363,6 +408,15 @@ def recompute_pledge_state(store: Store, serial_no: str) -> Pledge | None:
     later billing fails: the money did move, the commission was earned, and a
     later failure is a clawback question rather than a reason to rewrite
     history. This is what makes a rejected-then-approved pledge payable.
+
+    Retry counters, for the "how many goes did this take" question:
+      - failed_attempts     = events the bank rejected
+      - attempts_to_success = events up to AND INCLUDING the first approval,
+                              or None if it has never billed
+
+    A MANUAL cancellation is never overwritten here. Someone typed a date and
+    a reason; recomputing from bank history must not silently discard that.
+    Bank cancellations still win when no manual one has been recorded.
     """
     pledge = store.get_pledge(serial_no)
     if pledge is None:
@@ -381,6 +435,29 @@ def recompute_pledge_state(store: Store, serial_no: str) -> Pledge | None:
         e for e in events if settings.classification_for(e.status_id) == "cancelled"
     ]
 
+    failed_attempts = sum(
+        1
+        for e in events
+        if settings.classification_for(e.status_id)
+        in ("failed_retryable", "failed_final")
+    )
+    # Position of the first approval in the event sequence, 1-based: billed on
+    # the third go = 3. None while it has never billed.
+    attempts_to_success: int | None = None
+    if approved:
+        first = approved[0]
+        attempts_to_success = next(
+            i for i, e in enumerate(events, start=1) if e is first
+        )
+
+    # A manual cancellation is a human decision and outranks re-derivation.
+    if pledge.cancellation_source == "manual":
+        cancellation_date = pledge.cancellation_date
+    elif cancelled_events:
+        cancellation_date = cancelled_events[-1].status_date
+    else:
+        cancellation_date = pledge.cancellation_date
+
     updated = pledge.model_copy(
         update={
             "current_status_id": latest.status_id,
@@ -388,12 +465,14 @@ def recompute_pledge_state(store: Store, serial_no: str) -> Pledge | None:
             "current_status_date": latest.status_date,
             "current_classification": settings.classification_for(latest.status_id),
             "attempts": len(events),
+            "failed_attempts": failed_attempts,
+            "attempts_to_success": attempts_to_success,
             "debit_date": approved[0].status_date if approved else pledge.debit_date,
             "cancelled": bool(cancelled_events) or pledge.cancelled,
-            "cancellation_date": (
-                cancelled_events[-1].status_date
-                if cancelled_events
-                else pledge.cancellation_date
+            "cancellation_date": cancellation_date,
+            "cancellation_source": (
+                pledge.cancellation_source
+                or ("bank" if cancelled_events else None)
             ),
         }
     )

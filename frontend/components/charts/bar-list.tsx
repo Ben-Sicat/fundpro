@@ -71,11 +71,16 @@ export function BarList({
                   </span>
                 ) : null}
               </span>
-              <span className="flex shrink-0 items-baseline gap-2">
+              {/* Fixed, right-aligned columns. Without a reserved width these
+                  drift row to row ("63%" vs "100%") and the numbers stop
+                  reading as a column at all. */}
+              <span className="flex shrink-0 items-baseline gap-3">
                 {d.note ? (
-                  <span className="tabular text-muted">{d.note}</span>
+                  <span className="tabular min-w-[3.5ch] text-right text-muted">
+                    {d.note}
+                  </span>
                 ) : null}
-                <span className="tabular font-semibold text-primary">
+                <span className="tabular min-w-[3ch] text-right font-semibold text-primary">
                   {valueFormat(d.value)}
                 </span>
               </span>

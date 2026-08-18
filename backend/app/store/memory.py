@@ -39,6 +39,8 @@ class FundraiserSeed:
     active: bool = True
     start_date: str | None = None
     end_date: str | None = None
+    #: Performance tier (their STOPLIGHT). None until someone grades them.
+    tier: str | None = None
 
 
 @dataclass
@@ -101,6 +103,41 @@ class Store:
         self._event_keys.add(key)
         self.billing_events.append(event)
         return True
+
+    # -- exceptions ---------------------------------------------------------
+
+    def add_exception(self, exception: ImportException) -> bool:
+        """Add a review-queue row, unless the same problem is already open.
+
+        Re-uploading yesterday's bank file is routine, and every unmatched row
+        in it would otherwise appear on the review list again. Billing events
+        dedupe for exactly this reason; the review queue has to as well, or the
+        count grows every morning and stops meaning anything.
+
+        Keyed on (serial, problem) among UNRESOLVED rows only: if someone
+        resolved it and the same problem recurs, that is worth surfacing again.
+        """
+        key = (exception.serial_no, exception.problem)
+        if any((e.serial_no, e.problem) == key and not e.resolved for e in self.exceptions):
+            return False
+        self.exceptions.append(exception)
+        return True
+
+    def clear_exceptions_for(self, serial_no: str) -> int:
+        """Close any open review item for a serial that has now consolidated.
+
+        Without this, fixing the underlying problem leaves the original
+        complaint sitting in the queue: the operator classifies the unknown
+        bank code, re-uploads, the rows go through — and the review list still
+        shows the same seven items. Resolving them is bookkeeping the system
+        can do for itself.
+        """
+        closed = 0
+        for index, exception in enumerate(self.exceptions):
+            if exception.serial_no == serial_no and not exception.resolved:
+                self.exceptions[index] = exception.model_copy(update={"resolved": True})
+                closed += 1
+        return closed
 
     def events_for(self, serial_no: str) -> list[BillingEvent]:
         return sorted(

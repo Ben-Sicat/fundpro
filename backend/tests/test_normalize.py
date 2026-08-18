@@ -219,3 +219,29 @@ def test_parse_int_rejects_a_lossy_float() -> None:
 @pytest.mark.parametrize("value", ["", None])
 def test_parse_int_blank_is_none(value: object) -> None:
     assert parse_int(value) is None
+
+
+# ---------------------------------------------------------------------------
+# Double-equals formulas — found in the real 03-08-2026 bank file, where every
+# date cell reads `==DATE(2026,8,3)`. Requiring a single '=' rejected all 121
+# rows of that file.
+# ---------------------------------------------------------------------------
+
+
+def test_a_double_equals_date_is_still_a_date() -> None:
+    assert parse_date("==DATE(2026,8,3)") == date(2026, 8, 3)
+    assert parse_date("===DATE(2026,8,3)") == date(2026, 8, 3)
+    assert parse_date("==DATE(2026, 8, 3)") == date(2026, 8, 3)  # inner spaces
+
+
+def test_a_double_equals_amount_is_still_an_amount() -> None:
+    from app.parsing import eval_literal_arithmetic
+
+    assert eval_literal_arithmetic("==75*13") == Decimal("975")
+    assert parse_amount("==1,000.00") == Decimal("1000.00")
+
+
+def test_a_double_equals_cell_reference_is_still_unresolvable() -> None:
+    """Tolerating extra '=' must not start guessing at cell references."""
+    with pytest.raises(CellParseError):
+        parse_amount("==H2*2.5")

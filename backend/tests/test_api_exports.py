@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 
 from app.parsing.headers import APPS_TRACKER_COLUMNS, STATUS_REPORT_COLUMNS
 from app.services.exports import A1_COLUMNS
-from tests.conftest import ApiClient
+from tests.conftest import ApiClient, upload
 
 XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -222,3 +222,142 @@ def test_the_filename_is_safe_for_a_content_disposition_header(loaded: ApiClient
     assert '"' in disposition
     # No stray quotes or newlines that would let a name break the header.
     assert "\n" not in disposition and disposition.count('"') == 2
+
+
+def test_a2_survives_a_blank_card_type(api, tmp_path) -> None:
+    """The real Apps Tracker leaves CARDTYPE blank on some rows.
+
+    Found by running the live service against the client's own July files: the
+    fixtures always set a card type, so 334 tests passed while `/exports`
+    returned a 500 on real data.
+    """
+    from openpyxl import load_workbook
+
+    from app.parsing.headers import APPS_TRACKER_COLUMNS
+    from tests.fixtures.workbooks import build_apps_workbook
+
+    path = build_apps_workbook(tmp_path / "apps.xlsx")
+    wb = load_workbook(path)
+    ws = wb.active
+    card_type_col = list(APPS_TRACKER_COLUMNS).index("CARDTYPE") + 1
+    for row in range(2, ws.max_row + 1):
+        ws.cell(row=row, column=card_type_col).value = None
+    wb.save(path)
+
+    upload(api, path)
+    assert api.get("/exports/templates").status_code == 200
+    assert api.post("/exports/A2").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# C4 / C5 — the client's own payroll layout
+#
+# Derived from `Payroll Reference - FundPro.xlsx` on 2026-08-08. Reproducing
+# their sheet means it drops into the process they already run and can be
+# checked against last period's copy.
+# ---------------------------------------------------------------------------
+
+CLIENT_PAYROLL_COLUMNS = [
+    "FR Name", "Campaign", "Donor Name", "Site", "Sign-up Date", "Card Type",
+    "Frequency", "Pledge Amount", "Age", "INCENTIVE", "Serial #", "STOPLIGHT",
+]
+
+
+def test_c4_matches_the_clients_own_column_layout(loaded: ApiClient) -> None:
+    ws = sheet(loaded.post("/exports/C4"))
+    assert headers_of(ws) == CLIENT_PAYROLL_COLUMNS
+
+
+def test_c4_lists_every_application_with_what_it_earns(loaded: ApiClient) -> None:
+    ws = sheet(loaded.post("/exports/C4"))
+    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    assert len(rows) == 6
+
+    incentive = CLIENT_PAYROLL_COLUMNS.index("INCENTIVE")
+    amount = CLIENT_PAYROLL_COLUMNS.index("Pledge Amount")
+    # Default plan is x3 of the pledge.
+    for row in rows:
+        assert row[incentive] == row[amount] * 3
+
+
+def test_c4_shows_the_stoplight_tier(loaded: ApiClient) -> None:
+    """Ungraded fundraisers read N/A, exactly as their sheet does."""
+    ws = sheet(loaded.post("/exports/C4"))
+    tier = CLIENT_PAYROLL_COLUMNS.index("STOPLIGHT")
+    assert {row[tier] for row in ws.iter_rows(min_row=2, values_only=True)} == {"N/A"}
+
+
+def test_c5_is_one_line_per_fundraiser_per_currency(loaded: ApiClient) -> None:
+    """Their pivot is 'Row Labels / Sum of INCENTIVE'. This is that, plus the
+    currency their version cannot express."""
+    ws = sheet(loaded.post("/exports/C5"))
+    headers = headers_of(ws)
+    assert headers[:5] == ["FR Name", "STOPLIGHT", "Currency", "Donors", "Sum of INCENTIVE"]
+
+    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    keys = [(row[0], row[2]) for row in rows]
+    assert len(keys) == len(set(keys)), "a fundraiser/currency pair appeared twice"
+
+
+def test_c5_take_home_is_incentive_plus_bonus_minus_confirmed_clawbacks(
+    loaded: ApiClient,
+) -> None:
+    ws = sheet(loaded.post("/exports/C5"))
+    headers = headers_of(ws)
+    inc, bon, take = (
+        headers.index("Sum of INCENTIVE"),
+        headers.index("Bonuses"),
+        headers.index("Take home"),
+    )
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        # Proposed clawbacks are shown but NOT deducted until confirmed.
+        assert row[take] == row[inc] + row[bon]
+
+
+def test_a_tier_scoped_plan_prices_that_tier_differently(loaded: ApiClient) -> None:
+    """The evidence says the multiplier tracks their STOPLIGHT ranking, so a
+    per-tier rate has to be expressible without a code change."""
+    from datetime import date
+    from decimal import Decimal
+
+    from app.domain.reference import CommissionPlan
+    from app.services import payroll
+    from app.services.payroll import PayrollPledge
+
+    diamond = CommissionPlan(id="d", pct_of_pledge=Decimal(300), tier="DIAMOND")
+    red = CommissionPlan(id="r", pct_of_pledge=Decimal(100), tier="RED")
+    catch_all = CommissionPlan(id="all", pct_of_pledge=Decimal(250))
+
+    def p(tier: str) -> PayrollPledge:
+        return PayrollPledge(
+            serial_no="X", fundraiser_name="F", charity_code="STC",
+            amount=Decimal(1000), currency="PHP", signup_date=date(2026, 7, 1), tier=tier,
+        )
+
+    plans = [catch_all, diamond, red]
+    assert payroll.plan_for_pledge(p("DIAMOND"), plans).id == "d"
+    assert payroll.plan_for_pledge(p("RED"), plans).id == "r"
+    assert payroll.plan_for_pledge(p("GOLD"), plans).id == "all"
+
+
+def test_a_debit_card_can_be_priced_differently_from_credit(loaded: ApiClient) -> None:
+    """Debit cards skew to x1 / x0.5 in their own sheets."""
+    from datetime import date
+    from decimal import Decimal
+
+    from app.domain.reference import CommissionPlan
+    from app.services import payroll
+    from app.services.payroll import PayrollPledge
+
+    debit = CommissionPlan(id="debit", pct_of_pledge=Decimal(100), instrument_type="DEBIT CARD")
+    catch_all = CommissionPlan(id="all", pct_of_pledge=Decimal(300))
+
+    def p(instrument: str) -> PayrollPledge:
+        return PayrollPledge(
+            serial_no="X", fundraiser_name="F", charity_code="STC",
+            amount=Decimal(1000), currency="PHP", signup_date=date(2026, 7, 1),
+            instrument_type=instrument,
+        )
+
+    assert payroll.plan_for_pledge(p("DEBIT CARD"), [catch_all, debit]).id == "debit"
+    assert payroll.plan_for_pledge(p("CREDIT CARD"), [catch_all, debit]).id == "all"

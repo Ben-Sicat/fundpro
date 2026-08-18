@@ -5,7 +5,7 @@
  * need this parser — importing it from a `'use client'` module would drag the
  * whole component into their bundle.
  */
-import { DATE_BASIS_LABELS, type DateBasis, type PledgeFilters } from '@/lib/data'
+import { DATE_BASIS_LABELS, type DateBasis, type PledgeFilters } from '@/lib/data/filters'
 
 export function filtersFromParams(
   sp: Record<string, string | undefined>,

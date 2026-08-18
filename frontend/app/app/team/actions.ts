@@ -6,6 +6,8 @@ import { auth } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
 import {
   createFundraiser,
+  getAllLeaderNames,
+  getFundraiserRecords,
   updateFundraiser,
   validateFundraiser,
   type FundraiserInput,
@@ -58,11 +60,16 @@ export async function createFundraiserAction(
   await assertCanEditTeam()
   const values = readForm(formData)
 
-  const errors = validateFundraiser(values)
+  const [roster, leaders] = await Promise.all([
+    getFundraiserRecords(),
+    getAllLeaderNames(),
+  ])
+  const errors = validateFundraiser(values, undefined, roster, leaders)
   if (Object.keys(errors).length) return { errors, values }
 
   await createFundraiser(values)
   revalidatePath('/app/team')
+  revalidatePath('/app', 'layout')
   // Land on the roster with the new joiner visible rather than leaving a
   // filled-in form on screen that looks unsaved.
   redirect('/app/team?added=' + encodeURIComponent(values.code))
@@ -76,7 +83,11 @@ export async function updateFundraiserAction(
   await assertCanEditTeam()
   const values = readForm(formData)
 
-  const errors = validateFundraiser(values, code)
+  const [roster, leaders] = await Promise.all([
+    getFundraiserRecords(),
+    getAllLeaderNames(),
+  ])
+  const errors = validateFundraiser(values, code, roster, leaders)
   if (Object.keys(errors).length) return { errors, values }
 
   await updateFundraiser(code, values)

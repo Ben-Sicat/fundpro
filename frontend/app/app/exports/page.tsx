@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CardHeader,
+  EmptyState,
   SectionTitle,
   Table,
   Td,
@@ -12,8 +13,11 @@ import {
   Tr,
 } from '@/components/ui'
 import { UploadImpactPanel } from '@/components/upload-impact'
+import { CustomExportBuilder } from '@/components/custom-export-builder'
 import {
+  getExportFields,
   getExportRuns,
+  getPledges,
   getPresetSummaries,
   getUploadImpact,
   getUploads,
@@ -27,6 +31,16 @@ import { count, date } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Exports · FundPro' }
 
+/**
+ * Download URL for a report.
+ *
+ * This page has no filter bar, so a report covers the whole book — which is
+ * what the row count beside each button already reflects.
+ */
+function exportHref(code: string): string {
+  return `/api/exports/${code}`
+}
+
 function PiiBadge({ level }: { level: ExportPreset['piiLevel'] }) {
   if (level === 'none') return <Badge tone="good">No PII</Badge>
   if (level === 'masked') return <Badge tone="warning">Masked</Badge>
@@ -34,11 +48,14 @@ function PiiBadge({ level }: { level: ExportPreset['piiLevel'] }) {
 }
 
 export default async function ExportsPage() {
-  const [presets, runs, uploads] = await Promise.all([
+  const [presets, runs, uploads, exportFields, pledges] = await Promise.all([
     getPresetSummaries(),
     getExportRuns(),
     getUploads(),
+    getExportFields(),
+    getPledges(),
   ])
+  const pledgeCount = pledges.length
 
   const latest = uploads[0]
   const latestImpact = latest ? await getUploadImpact(latest.id) : null
@@ -66,7 +83,7 @@ Every report you need, ready to download. Each one shows how many rows you will 
           <SectionTitle hint="derived from the newest upload">
             Suggested right now
           </SectionTitle>
-          <Card glass>
+          <Card>
             <UploadImpactPanel impact={latestImpact} filename={latest.filename} />
             <p className="mt-4 border-t border-line pt-3 text-[11px] text-muted">
               These are the same reports listed below, pre-filtered to just what
@@ -89,7 +106,7 @@ Every report you need, ready to download. Each one shows how many rows you will 
             // org's fallback and the reason the platform is trustworthy.
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               {items.map((t) => (
-                <Card key={t.code} feature glass className="flex flex-col">
+                <Card key={t.code} className="flex flex-col">
                   <div className="flex items-center gap-2">
                     <span className="tabular rounded-md bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-accent">
                       {t.code}
@@ -114,9 +131,13 @@ Every report you need, ready to download. Each one shows how many rows you will 
                       ) : null}
                       <PiiBadge level={t.piiLevel} />
                     </span>
-                    <Button variant="primary" size="sm">
-                      ↧ Generate
-                    </Button>
+                    {/* A plain link, not a Server Action: the response is a
+                        file, and the browser saves it directly. */}
+                    <a href={exportHref(t.code)} download>
+                      <Button variant="primary" size="sm">
+                        ↧ Generate
+                      </Button>
+                    </a>
                   </div>
                 </Card>
               ))}
@@ -182,12 +203,18 @@ Every report you need, ready to download. Each one shows how many rows you will 
                         <span className="flex justify-end gap-1.5">
                           {t.cadence ? (
                             <span className="hidden lg:inline">
-                              <Button size="sm">Schedule</Button>
+                              {/* Scheduling has a job-driver interface but
+                                  no endpoint behind it yet. */}
+                              <Button size="sm" disabled title="Coming soon">
+                                Schedule
+                              </Button>
                             </span>
                           ) : null}
-                          <Button size="sm" variant="primary">
-                            ↧ Generate
-                          </Button>
+                          <a href={exportHref(t.code)} download>
+                            <Button size="sm" variant="primary">
+                              ↧ Generate
+                            </Button>
+                          </a>
                         </span>
                       </Td>
                     </Tr>
@@ -198,6 +225,31 @@ Every report you need, ready to download. Each one shows how many rows you will 
           )}
         </div>
       ))}
+
+      {/* ---- Build your own ---- */}
+      <div>
+        <SectionTitle hint="any columns you like, off the consolidated data">
+          Build your own
+        </SectionTitle>
+        <Card>
+          <CardHeader
+            title="Custom export"
+            subtitle="Pick the columns you need. The order you choose is the order in the sheet."
+          />
+          {exportFields.length > 0 ? (
+            <CustomExportBuilder
+              fields={exportFields}
+              query=""
+              rowsAvailable={pledgeCount}
+            />
+          ) : (
+            <EmptyState
+              title="Needs the processing service"
+              description="Custom exports are assembled by the processing service. Start it, then reload this page."
+            />
+          )}
+        </Card>
+      </div>
 
       {/* ---- Audit trail ---- */}
       <div>

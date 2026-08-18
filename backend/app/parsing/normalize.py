@@ -125,7 +125,10 @@ def parse_int(value: object) -> int | None:
 # Dates
 # ---------------------------------------------------------------------------
 
-_DATE_FORMULA = re.compile(r"^=\s*DATE\s*\(\s*(\d{4})\s*,\s*(\d{1,2})\s*,\s*(\d{1,2})\s*\)$", re.I)
+# One or more leading "=" — the August 2026 bank file writes `==DATE(...)`,
+# which is what a formula copied as text looks like. Requiring exactly one
+# rejected every row in that file.
+_DATE_FORMULA = re.compile(r"^=+\s*DATE\s*\(\s*(\d{4})\s*,\s*(\d{1,2})\s*,\s*(\d{1,2})\s*\)$", re.I)
 _NUMERIC_DATE = re.compile(r"^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})$")
 
 _TEXT_DATE_FORMATS = (

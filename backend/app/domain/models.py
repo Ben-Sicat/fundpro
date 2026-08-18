@@ -26,6 +26,8 @@ Money = Annotated[
     PlainSerializer(lambda v: float(v), return_type=float, when_used="json"),
 ]
 
+CancellationSource = Literal["bank", "manual"]
+
 StatusClassification = Literal[
     "approved", "failed_retryable", "failed_final", "cancelled", "other"
 ]
@@ -104,7 +106,12 @@ class Pledge(Wire):
 
     amount: Money = Decimal(0)
     currency: Currency = "PHP"
+    #: Canonical form ('Monthly'), used for reporting and grouping.
     frequency: str = ""
+    #: Exactly as the source file wrote it ('1', '12', 'Semi-annual').
+    #: The legacy A1 export echoes THIS, because A1's job is to reproduce
+    #: their sheet, not to reinterpret it.
+    frequency_raw: str = ""
     instrument_type: str = ""
     #: Masked only. The real files mask with asterisks: 542550********2906.
     masked_pan: str = ""
@@ -122,6 +129,17 @@ class Pledge(Wire):
     invoiced_date: date | None = None
     payout_date: date | None = None
 
+    #: Why this pledge was cancelled, in the operator's own words.
+    #: Only ever set alongside `cancellation_date`.
+    cancellation_reason: str | None = None
+    #: Where the cancellation came from. `bank` means a status code in a
+    #: Status Report said so; `manual` means a human recorded it here. This
+    #: exists so recomputing state from billing history cannot silently
+    #: overwrite a decision somebody typed in — see recompute_pledge_state.
+    cancellation_source: CancellationSource | None = None
+    cancelled_by: str | None = None
+    cancelled_at: datetime | None = None
+
     verified: bool = False
     verified_by: str | None = None
     app_status: str = ""
@@ -129,7 +147,14 @@ class Pledge(Wire):
     current_status_description: str | None = None
     current_status_date: date | None = None
     current_classification: StatusClassification | None = None
+    #: Every billing event on this pledge, successful or not.
     attempts: int = 0
+    #: Attempts the bank rejected. The retry counter operations watch.
+    failed_attempts: int = 0
+    #: How many attempts it took to get paid, counting the successful one.
+    #: None while the pledge has never billed. A donor who billed first time
+    #: is 1; one who needed two retries is 3.
+    attempts_to_success: int | None = None
     cancelled: bool = False
     invoice_no: str | None = None
     commission_amount: Money | None = None
@@ -198,6 +223,8 @@ class FundraiserRecord(Wire):
     active: bool
     start_date: date | None = None
     end_date: date | None = None
+    #: The client's STOPLIGHT ranking: DIAMOND / GOLD / GREEN / AMBER / RED.
+    tier: str | None = None
     leader_names: list[str] = []
     signups: int = 0
     realized: int = 0
@@ -417,3 +444,12 @@ class AuditEntry(Wire):
     action: str
     detail: str
     contains_pii: bool = False
+
+
+class ExportField(Wire):
+    """One column a custom export can include."""
+
+    key: str
+    label: str
+    group: str
+    pii: Literal["none", "masked", "full"]

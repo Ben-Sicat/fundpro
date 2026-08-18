@@ -96,6 +96,17 @@ DEFAULT_CARD_TYPE_MAP: dict[str, str] = {
 
 CLAWBACK_REASONS = ("cancelled", "failed_final", "unrealized")
 
+# ---------------------------------------------------------------------------
+# Fundraiser tiers — the client's own "STOPLIGHT" column.
+#
+# Derived from the payroll reference on 2026-08-08: the sheets rank each fundraiser
+# DIAMOND / GOLD / GREEN / AMBER / RED, and the commission multiplier tracks
+# that ranking (DIAMOND is x3 in 83% of credit-card rows, RED drops to x1 or
+# x0.5). Ordered best-first; the list is editable because the names are theirs.
+# ---------------------------------------------------------------------------
+
+DEFAULT_TIERS: tuple[str, ...] = ("DIAMOND", "GOLD", "GREEN", "AMBER", "RED")
+
 
 @dataclass
 class CommissionPlan:
@@ -129,6 +140,12 @@ class CommissionPlan:
     charity_code: str | None = None
     #: None = every frequency. 'Monthly', 'Quarterly', 'Semi-Annual', 'Annual'.
     frequency: str | None = None
+    #: None = every tier. The client's STOPLIGHT ranking, which their own
+    #: payroll sheets track the multiplier against.
+    tier: str | None = None
+    #: None = every instrument. Debit cards price very differently in the
+    #: samples, so this is expressible without a schema change.
+    instrument_type: str | None = None
 
 
 DEFAULT_PLAN = CommissionPlan(id="default")
@@ -208,6 +225,9 @@ class Settings:
     #: Free-text venue names resolved to one canonical site.
     location_aliases: dict[str, str] = field(default_factory=dict)
 
+    #: Fundraiser performance tiers, best first. Their "STOPLIGHT".
+    tiers: list[str] = field(default_factory=lambda: list(DEFAULT_TIERS))
+
     # -- rules the client still owes us a decision on ------------------------
 
     #: 'submitted' = realized ÷ sent-to-bank. 'signups' = realized ÷ all
@@ -221,6 +241,16 @@ class Settings:
 
     #: Require a completed verification call before a pledge can be paid on.
     require_verification_for_payroll: bool = False
+
+    #: When a bank row has no matching application, create a provisional one
+    #: from the bank's own columns instead of setting the row aside.
+    #:
+    #: OFF by default and deliberately so: an application built from a bank
+    #: file has no email, no date of birth, no site and no fundraiser name, so
+    #: it cannot be attributed or paid on. It exists to unblock the case where
+    #: the bank file arrives before the Apps Tracker has been updated, and is
+    #: superseded the moment the real tracker is imported.
+    create_missing_from_bank: bool = False
 
     #: Used only where a single cross-currency total is unavoidable. None means
     #: refuse to combine, which is the current behaviour everywhere.

@@ -55,6 +55,10 @@ class PayrollPledge:
     frequency: str | None = None
     #: Whether the donor has been phoned and confirmed.
     verified: bool = False
+    #: The FUNDRAISER's tier at the time of the run (their STOPLIGHT).
+    tier: str | None = None
+    #: 'CREDIT CARD' / 'DEBIT CARD'.
+    instrument_type: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +122,8 @@ def plan_for_pledge(
         if p.effective_from <= pledge.signup_date
         and (p.charity_code is None or p.charity_code == pledge.charity_code)
         and (p.frequency is None or p.frequency == pledge.frequency)
+        and (p.tier is None or p.tier == pledge.tier)
+        and (p.instrument_type is None or p.instrument_type == pledge.instrument_type)
     ]
     if not eligible:
         return None
@@ -127,7 +133,9 @@ def plan_for_pledge(
         key=lambda p: (
             p.effective_from,
             (1 if p.charity_code is not None else 0)
-            + (1 if p.frequency is not None else 0),
+            + (1 if p.frequency is not None else 0)
+            + (1 if p.tier is not None else 0)
+            + (1 if p.instrument_type is not None else 0),
         ),
         reverse=True,
     )

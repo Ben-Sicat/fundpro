@@ -1,18 +1,41 @@
 @import 'tailwindcss';
 
 /* ==========================================================================
-   FundPro design system — game-console look
+   FundPro design system — operations console
 
-   The brief: the visual language of a premium game UI (Mobile Legends and
-   friends) on a tool that non-technical people use all day. So the RICHNESS
-   lives in the chrome — gradient plates, gold edges, bevels, glow — while the
-   data itself stays calm and legible. Bold frame, quiet contents.
+   WHAT THIS IS
+   A tool for a face-to-face fundraising agency. Fundraisers work shifts at
+   airports and malls signing people up to monthly card donations; every day a
+   file arrives from the bank saying which of those donations were actually
+   charged. Operations and finance staff live in this all day, and there is a
+   wall-display mode, so it also has to read from across a room.
 
-   DARK IS THE PRIMARY THEME; light stays supported for bright rooms.
+   THE DIRECTION
+   An operations console, not a SaaS dashboard. Three devices carry it:
 
-   Chart colours are the validated data-viz palette, re-validated against
-   THESE surfaces (validate_palette.js: all checks pass, both modes).
-   Do not hand-tune them.
+   1. A MEASURED FIELD. A 32px grid with lights travelling along it
+      (components/grid-tracer.tsx). The field is what everything floats on.
+   2. FROSTED GLASS PLANES. Panels are opaque frosted glass — the grid is
+      sensed behind them, never read through them. Translucent panels put
+      stray vertical lines inside charts and tables; that is why they are
+      opaque now.
+   3. MONO FIGURES. Every number, date, serial and bank code is monospaced;
+      prose and labels are not. The subject's own artifacts look like this,
+      and it separates "number you act on" from "words about the number"
+      without spending colour or weight on the distinction.
+
+   RULES
+   - Design tokens only. Never a raw hex in a component.
+   - Every form control sets BOTH `color` and `background-color`. Inheriting
+     `color` is what once rendered inputs light-grey on white and invisible.
+   - Colour is semantic. The accent means "interactive, or the one lead
+     figure". Green/amber/red mean approved/retrying/failed and nothing else.
+     Grey is the cancelled colour — never the categorical green.
+   - Chart colours are the validated data-viz palette (--series-1..4),
+     re-validated against these surfaces. Do not hand-tune them.
+   - One radius, one hairline, two elevations, one spacing rhythm.
+
+   DARK IS PRIMARY; light is a supported opt-out for bright rooms.
    ========================================================================== */
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
@@ -23,61 +46,55 @@
 :root {
   color-scheme: dark;
 
-  /* -- planes: deep indigo, lit from above ------------------------------ */
-  --bg: #0b0e1c;
-  --bg-tint-a: rgba(79, 110, 232, 0.22);
-  --bg-tint-b: rgba(240, 180, 41, 0.12);
-  --bg-tint-c: rgba(128, 74, 214, 0.16);
-  --bg-grid: rgba(255, 255, 255, 0.02);
-  --surface: #171a2e;
-  --surface-2: #1e2340;
-  --surface-3: #2a3054;
-  --glass: rgba(30, 35, 64, 0.66);
-  --glass-strong: rgba(15, 18, 38, 0.9);
-  --glass-highlight: rgba(255, 255, 255, 0.16);
-  /* Panels are gradients, not flats — the single biggest cue that this is a
-     game surface rather than a dashboard. */
-  --panel-grad: linear-gradient(160deg, #232a4d 0%, #171a2e 46%, #141728 100%);
-  --panel-grad-hi: linear-gradient(160deg, #2c3560 0%, #1c2140 55%, #171b33 100%);
-  --header-grad: linear-gradient(90deg, rgba(79,110,232,0.30), rgba(128,74,214,0.16) 55%, transparent);
+  /* -- the field -------------------------------------------------------- */
+  --bg: #0a0c11;
+  --bg-tint-a: rgba(76, 141, 255, 0.10);
+  --bg-tint-b: rgba(76, 141, 255, 0.045);
+  --bg-tint-c: transparent;
+  /* Two-tier grid: a fine 32px weave, every 4th line heavier, so the field
+     reads as measured rather than as wallpaper. */
+  --bg-grid: rgba(139, 170, 226, 0.055);
+  --bg-grid-major: rgba(139, 170, 226, 0.10);
+  /* The travelling lights. */
+  --grid-spark: rgba(120, 170, 255, 0.42);
+  --grid-spark-hot: rgba(175, 215, 255, 0.90);
+  --grid-spark-core: #e6f1ff;
+
+  /* -- planes ----------------------------------------------------------- */
+  --surface: #141821;
+  --surface-2: #1a1f2b;
+  --surface-3: #232936;
+  /* Frosted, not transparent. High alpha so the grid is sensed as depth but
+     never draws a line through a chart or a table. */
+  --glass: rgba(23, 28, 38, 0.93);
+  --glass-strong: rgba(16, 19, 27, 0.96);
+  --glass-highlight: rgba(255, 255, 255, 0.06);
 
   /* -- ink -------------------------------------------------------------- */
-  --text-primary: #f4f6ff;
-  --text-secondary: #b3bcdb;
-  --text-muted: #98a2c4;
+  --text-primary: #f2f4f8;
+  --text-secondary: #a8b0c0;
+  --text-muted: #7c8595;
   --text-inverse: #0b0e1c;
 
   /* -- lines ------------------------------------------------------------ */
-  --border: rgba(140, 160, 240, 0.16);
-  --border-strong: rgba(160, 180, 255, 0.28);
-  --bevel: rgba(255, 255, 255, 0.16); /* top edge of a raised panel */
-  /* Gold hairline: the ornamental edge that reads as "premium game panel". */
-  --edge-gold: rgba(240, 180, 41, 0.55);
-  --grid: #2a3054;
-  --axis: #495282;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --grid: #222834;
+  --axis: #5a6474;
 
-  /* -- accents: blue is the system, gold is the reward ------------------ */
-  --accent: #4f8ff5;
-  --accent-hover: #6ba3ff;
-  --accent-soft: rgba(79, 143, 245, 0.18);
-  --accent-glow: rgba(79, 143, 245, 0.5);
-  --accent-grad: linear-gradient(180deg, #5f9dff 0%, #3a72d8 100%);
+  /* -- accent: interaction, and the one lead figure --------------------- */
+  --accent: #4c8dff;
+  --accent-hover: #6ba0ff;
+  --accent-soft: rgba(76, 141, 255, 0.14);
   --on-accent: #ffffff;
 
-  --gold: #f0b429;
-  --gold-soft: rgba(240, 180, 41, 0.16);
-  --gold-glow: rgba(240, 180, 41, 0.45);
-  --gold-grad: linear-gradient(180deg, #ffd46b 0%, #e0a020 100%);
-  --on-gold: #2a1c00;
-
-  /* -- status (reserved; always with an icon + label) ------------------- */
+  /* -- semantic: approved / retrying / failed --------------------------- */
   --good: #0ca30c;
   --good-text: #4ee04e;
   --good-soft: rgba(12, 163, 12, 0.16);
   --warning: #fab219;
   --warning-text: #fac955;
   --warning-soft: rgba(250, 178, 25, 0.16);
-  --serious: #ec835a;
   --critical: #d03b3b;
   --critical-text: #ff8f8f;
   --critical-soft: rgba(208, 59, 59, 0.18);
@@ -88,56 +105,53 @@
   --series-3: #199e70;
   --series-4: #c98500;
 
-
-  /* -- elevation & glow ------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.5), 0 10px 28px -10px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.5), 0 28px 56px -18px rgba(0, 0, 0, 0.8);
-  --glass-edge-opacity: 0.55;
+  /* -- elevation -------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.26), 0 10px 30px -14px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.3), 0 28px 64px -26px rgba(0, 0, 0, 0.65);
 }
 
 /* --------------------------------------------------------------------------
-   LIGHT — an explicit opt-out, declared under both the OS preference and the
-   in-app toggle so the toggle wins in both directions.
+   LIGHT — declared under both the OS preference and the in-app toggle, so the
+   toggle wins in both directions.
    -------------------------------------------------------------------------- */
 @media (prefers-color-scheme: light) {
   :root:where(:not([data-theme='dark'])) {
     color-scheme: light;
 
-    --bg: #eef0f4;
-    --bg-tint-a: rgba(42, 120, 214, 0.08);
-    --bg-tint-b: rgba(224, 168, 40, 0.07);
-    --bg-grid: rgba(11, 11, 11, 0.025);
-    --surface: #ffffff;
-    --surface-2: #f7f8fa;
-    --surface-3: #eceef2;
-    --glass: rgba(255, 255, 255, 0.74);
-    --glass-strong: rgba(255, 255, 255, 0.9);
-    --glass-highlight: rgba(255, 255, 255, 0.8);
+    --bg: #f4f6f9;
+    --bg-tint-a: rgba(42, 110, 214, 0.05);
+    --bg-tint-b: rgba(42, 110, 214, 0.03);
+    --bg-grid: rgba(31, 56, 102, 0.055);
+    --bg-grid-major: rgba(31, 56, 102, 0.10);
+    --grid-spark: rgba(42, 120, 214, 0.22);
+    --grid-spark-hot: rgba(42, 120, 214, 0.55);
+    --grid-spark-core: #1f63c4;
 
-    --text-primary: #0b0d12;
-    --text-secondary: #4a5160;
-    --text-muted: #6e7686;
+    --surface: #ffffff;
+    --surface-2: #f7f9fb;
+    --surface-3: #eef1f5;
+    --glass: rgba(255, 255, 255, 0.94);
+    --glass-strong: rgba(255, 255, 255, 0.97);
+    --glass-highlight: rgba(255, 255, 255, 0.9);
+
+    --text-primary: #0d1117;
+    --text-secondary: #4c5563;
+    --text-muted: #6f7887;
     --text-inverse: #ffffff;
 
-    --border: rgba(11, 13, 18, 0.1);
-    --border-strong: rgba(11, 13, 18, 0.18);
-    --bevel: rgba(255, 255, 255, 0.9);
-    --grid: #e2e5ea;
-    --axis: #b9bfc9;
+    --border: rgba(13, 17, 23, 0.09);
+    --border-strong: rgba(13, 17, 23, 0.16);
+    --grid: #e7e9ee;
+    --axis: #aeb5c0;
 
-    --accent: #2a78d6;
-    --accent-hover: #256abf;
-    --accent-soft: rgba(42, 120, 214, 0.1);
-    --accent-glow: rgba(42, 120, 214, 0.28);
+    --accent: #2b6ed6;
+    --accent-hover: #2560bd;
+    --accent-soft: rgba(43, 110, 214, 0.09);
+    --on-accent: #ffffff;
 
-    --gold: #9a6f00;
-    --gold-soft: rgba(224, 168, 40, 0.18);
-    --gold-glow: rgba(154, 111, 0, 0.22);
-    --on-gold: #ffffff;
-
-    --good-text: #006300;
-    --good-soft: rgba(12, 163, 12, 0.1);
+    --good-text: #046104;
+    --good-soft: rgba(12, 163, 12, 0.11);
     --warning-text: #7a5200;
     --warning-soft: rgba(250, 178, 25, 0.18);
     --critical-text: #a52222;
@@ -148,53 +162,50 @@
     --series-3: #1baf7a;
     --series-4: #eda100;
 
-
     --shadow-sm: 0 1px 2px rgba(11, 13, 18, 0.06);
     --shadow-md: 0 1px 3px rgba(11, 13, 18, 0.07),
-      0 10px 28px -10px rgba(11, 13, 18, 0.12);
+      0 10px 28px -12px rgba(11, 13, 18, 0.12);
     --shadow-lg: 0 2px 6px rgba(11, 13, 18, 0.08),
-      0 28px 56px -18px rgba(11, 13, 18, 0.18);
-    --glass-edge-opacity: 0.6;
+      0 28px 56px -20px rgba(11, 13, 18, 0.18);
   }
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #eef0f4;
-  --bg-tint-a: rgba(42, 120, 214, 0.08);
-  --bg-tint-b: rgba(224, 168, 40, 0.07);
-  --bg-grid: rgba(11, 11, 11, 0.025);
-  --surface: #ffffff;
-  --surface-2: #f7f8fa;
-  --surface-3: #eceef2;
-  --glass: rgba(255, 255, 255, 0.74);
-  --glass-strong: rgba(255, 255, 255, 0.9);
-  --glass-highlight: rgba(255, 255, 255, 0.8);
+  --bg: #f4f6f9;
+  --bg-tint-a: rgba(42, 110, 214, 0.05);
+  --bg-tint-b: rgba(42, 110, 214, 0.03);
+  --bg-grid: rgba(31, 56, 102, 0.055);
+  --bg-grid-major: rgba(31, 56, 102, 0.10);
+  --grid-spark: rgba(42, 120, 214, 0.22);
+  --grid-spark-hot: rgba(42, 120, 214, 0.55);
+  --grid-spark-core: #1f63c4;
 
-  --text-primary: #0b0d12;
-  --text-secondary: #4a5160;
-  --text-muted: #6e7686;
+  --surface: #ffffff;
+  --surface-2: #f7f9fb;
+  --surface-3: #eef1f5;
+  --glass: rgba(255, 255, 255, 0.94);
+  --glass-strong: rgba(255, 255, 255, 0.97);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+
+  --text-primary: #0d1117;
+  --text-secondary: #4c5563;
+  --text-muted: #6f7887;
   --text-inverse: #ffffff;
 
-  --border: rgba(11, 13, 18, 0.1);
-  --border-strong: rgba(11, 13, 18, 0.18);
-  --bevel: rgba(255, 255, 255, 0.9);
-  --grid: #e2e5ea;
-  --axis: #b9bfc9;
+  --border: rgba(13, 17, 23, 0.09);
+  --border-strong: rgba(13, 17, 23, 0.16);
+  --grid: #e7e9ee;
+  --axis: #aeb5c0;
 
-  --accent: #2a78d6;
-  --accent-hover: #256abf;
-  --accent-soft: rgba(42, 120, 214, 0.1);
-  --accent-glow: rgba(42, 120, 214, 0.28);
+  --accent: #2b6ed6;
+  --accent-hover: #2560bd;
+  --accent-soft: rgba(43, 110, 214, 0.09);
+  --on-accent: #ffffff;
 
-  --gold: #9a6f00;
-  --gold-soft: rgba(224, 168, 40, 0.18);
-  --gold-glow: rgba(154, 111, 0, 0.22);
-  --on-gold: #ffffff;
-
-  --good-text: #006300;
-  --good-soft: rgba(12, 163, 12, 0.1);
+  --good-text: #046104;
+  --good-soft: rgba(12, 163, 12, 0.11);
   --warning-text: #7a5200;
   --warning-soft: rgba(250, 178, 25, 0.18);
   --critical-text: #a52222;
@@ -205,21 +216,32 @@
   --series-3: #1baf7a;
   --series-4: #eda100;
 
-
   --shadow-sm: 0 1px 2px rgba(11, 13, 18, 0.06);
   --shadow-md: 0 1px 3px rgba(11, 13, 18, 0.07),
-    0 10px 28px -10px rgba(11, 13, 18, 0.12);
+    0 10px 28px -12px rgba(11, 13, 18, 0.12);
   --shadow-lg: 0 2px 6px rgba(11, 13, 18, 0.08),
-    0 28px 56px -18px rgba(11, 13, 18, 0.18);
-  --glass-edge-opacity: 0.6;
+    0 28px 56px -20px rgba(11, 13, 18, 0.18);
 }
 
-/* Expose roles as Tailwind utilities (bg-surface, text-muted, …). */
+/* --------------------------------------------------------------------------
+   Shape and rhythm — one value each, used everywhere.
+   -------------------------------------------------------------------------- */
+:root {
+  --r: 10px; /* the radius */
+  --r-sm: 7px; /* controls and badges */
+  --pad: 1.25rem; /* panel padding */
+  --gap: 1.5rem; /* between stacked sections */
+}
+
+/* --------------------------------------------------------------------------
+   Tailwind bridge
+   -------------------------------------------------------------------------- */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
+  --color-glass: var(--glass);
 
   --color-primary: var(--text-primary);
   --color-secondary: var(--text-secondary);
@@ -235,10 +257,6 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
-
-  --color-gold: var(--gold);
-  --color-gold-soft: var(--gold-soft);
-  --color-on-gold: var(--on-gold);
 
   --color-good: var(--good);
   --color-good-text: var(--good-text);
@@ -258,27 +276,18 @@
   --shadow-card: var(--shadow-md);
   --shadow-float: var(--shadow-lg);
 
-  /* Named faces, loaded via next/font. `system-ui` is deliberately NOT first:
-     it resolves to a monospace face on some Linux fontconfig setups. */
+  /* `system-ui` is deliberately NOT first: it resolves to a monospace face on
+     some Linux fontconfig setups, which once rendered the entire UI in a code
+     font. Naming the faces removes that dependency. */
   --font-sans: var(--font-rubik), 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
-  --font-display: var(--font-chakra), var(--font-rubik), 'Segoe UI', Roboto,
-    sans-serif;
+  --font-mono: var(--font-mono-data), ui-monospace, 'SF Mono', 'Cascadia Mono',
+    Consolas, 'Liberation Mono', monospace;
 }
 
 /* ==========================================================================
    Base
    ========================================================================== */
-
-/* Headings, HUD labels and hero figures take the display face; body copy and
-   table data stay in Rubik, which is easier to read in bulk. */
-h1,
-h2,
-h3,
-.hud,
-.numeral {
-  font-family: var(--font-display);
-}
 
 body {
   background-color: var(--bg);
@@ -290,8 +299,70 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Ambient wash + faint tech grid: the depth that makes panels read as raised.
-   Fixed and non-interactive, so it never affects layout or hit testing. */
+/* -- type scale -----------------------------------------------------------
+   Four steps with real jumps between them. The previous scale had the page
+   title at 20px and a panel title at 16px, close enough to read as siblings,
+   which is why nothing felt like a hierarchy. */
+h1 {
+  font-size: clamp(1.5rem, 1.15rem + 1vw, 1.875rem);
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  font-weight: 640;
+}
+
+h1 + p {
+  margin-top: 0.4rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+h2,
+h3 {
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+/* -- the three data classes -----------------------------------------------
+   `.tabular` — mono. For data that sits in a COLUMN or IS an identifier:
+     table cells, serials, bank codes, dates, small inline figures. Mono earns
+     its place here because the digits align and because the subject's own
+     artifacts look like this.
+   `.figure` — sans, tabular numerals. For a HEADLINE number. Mono is wrong at
+     display size: the period sits centred in a full-width cell, so "50.0%"
+     reads as "50 . 0%". Nothing aligns to a hero figure, so it gets display
+     typography instead.
+   `.hud` — the console label: small, wide-tracked, uppercase.
+   Between them they mark everything that is data rather than prose. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  /* Mono glyphs sit in fixed-width cells, so a decimal point or a percent sign
+     reads as a gap. A little negative tracking closes it without disturbing
+     the column alignment that makes the face worth using. */
+  letter-spacing: -0.02em;
+}
+
+.figure {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+.hud {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   The field
+   ========================================================================== */
+
+/* Ambient wash plus the two-tier grid. Fixed and non-interactive, so it never
+   affects layout or hit testing. */
 .app-canvas::before {
   content: '';
   position: fixed;
@@ -301,25 +372,138 @@ body {
   background:
     radial-gradient(52rem 34rem at 6% -10%, var(--bg-tint-a), transparent 62%),
     radial-gradient(44rem 30rem at 106% 108%, var(--bg-tint-b), transparent 62%),
-    radial-gradient(38rem 26rem at 78% -6%, var(--bg-tint-c), transparent 60%),
-    repeating-linear-gradient(
-      0deg,
-      var(--bg-grid) 0 1px,
-      transparent 1px 44px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      var(--bg-grid) 0 1px,
-      transparent 1px 44px
-    );
+    /* major lines, every 4th cell */
+    repeating-linear-gradient(0deg, var(--bg-grid-major) 0 1px, transparent 1px 128px),
+    repeating-linear-gradient(90deg, var(--bg-grid-major) 0 1px, transparent 1px 128px),
+    /* fine weave */
+    repeating-linear-gradient(0deg, var(--bg-grid) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, var(--bg-grid) 0 1px, transparent 1px 32px);
 }
 
-/* --------------------------------------------------------------------------
-   Form controls
+/* Lights running the grid — see components/grid-tracer.tsx. Viewport-sized
+   containing block, so each route's px coordinates land on the same lattice as
+   the rules painted above. */
+.grid-lights {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
 
-   Every control sets its own color AND background. Inheriting `color` from an
-   ancestor is what once rendered these light-grey on white and invisible.
-   -------------------------------------------------------------------------- */
+/* A tail fading back from a bright head. `offset-rotate: auto` turns the
+   element to face its direction of travel and `offset-anchor` pins the HEAD to
+   the path, so the tail streams behind and swings correctly through every
+   corner. A stroke-dash cannot do this — a dash has no orientation, which is
+   why the first attempt read as a bar sliding along rather than a light. */
+.grid-light {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  offset-rotate: auto;
+  offset-anchor: 100% 50%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--grid-spark) 62%,
+    var(--grid-spark-hot) 94%,
+    var(--grid-spark-core) 100%
+  );
+  filter: drop-shadow(0 0 5px var(--grid-spark-hot));
+  animation-name: light-run;
+  /* Linear: an eased loop stutters visibly where the cycle wraps. */
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: offset-distance;
+}
+
+/* The bright core at the leading edge — what makes it read as a light rather
+   than a lit line. */
+.grid-light::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--grid-spark-core);
+  box-shadow:
+    0 0 7px 1px var(--grid-spark-hot),
+    0 0 18px 5px var(--grid-spark);
+}
+
+/* Depth: not every light is in the foreground. */
+.grid-light--dim {
+  opacity: 0.45;
+}
+
+@keyframes light-run {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+
+/* ==========================================================================
+   Planes
+   ========================================================================== */
+
+/* The panel. Frosted glass on the field: one radius, one hairline, one soft
+   elevation. Everything that groups content is one of these. */
+.panel {
+  position: relative;
+  background-color: var(--glass);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Chrome that content scrolls under — the topbar. Denser frost, so text stays
+   legible over whatever passes beneath it. */
+.glass-strong {
+  background-color: var(--glass-strong);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+/* The one lead figure per view. It earns emphasis with a lit top edge and a
+   breath of accent in the plane — not with a glow.
+   Derived from live tokens via color-mix so it follows either theme; a fixed
+   gradient here previously rendered a dark plate with dark text in light. */
+.stat-lead {
+  background-color: color-mix(in srgb, var(--accent) 7%, var(--glass));
+}
+
+.stat-lead::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: var(--r) var(--r) 0 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent) 22%,
+    var(--accent) 78%,
+    transparent
+  );
+  opacity: 0.8;
+}
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+
+/* Every control states BOTH colours. Inheriting `color` from an ancestor is
+   what once rendered these light-grey on white and invisible. */
 input,
 textarea,
 select {
@@ -328,271 +512,225 @@ select {
   font: inherit;
 }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--text-muted);
-  opacity: 1; /* Firefox lowers placeholder opacity by default */
+/* Native date/time pickers render their indicator dark-on-dark otherwise. */
+::-webkit-calendar-picker-indicator {
+  filter: var(--picker-invert, none);
+  cursor: pointer;
 }
 
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--text-primary);
-  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
-  caret-color: var(--text-primary);
+:root {
+  --picker-invert: invert(0.75);
 }
 
-/* Dark-mode date pickers ship a black glyph that vanishes on a dark field. */
-:root:not([data-theme='light']) input[type='date']::-webkit-calendar-picker-indicator {
-  filter: invert(1) opacity(0.6);
+:root[data-theme='light'],
+:root:where(:not([data-theme='dark'])) {
+  --picker-invert: none;
 }
 
-:focus-visible {
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    --picker-invert: invert(0.75);
+  }
+}
+
+/* Visible, and the same shape on every control. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-::selection {
-  background: var(--accent-soft);
-  color: var(--text-primary);
+  border-radius: var(--r-sm);
 }
 
 /* ==========================================================================
-   Gamified chrome
+   Rhythm
    ========================================================================== */
 
-.glass {
-  background-color: var(--glass);
-  backdrop-filter: blur(16px) saturate(170%);
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
+/* One spacing unit between stacked sections, everywhere. */
+main > * + * {
+  margin-top: var(--gap);
 }
 
-.glass-strong {
-  background-color: var(--glass-strong);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
+/* Plot panels need height or the marks have nowhere to live. */
+.plot-tall {
+  min-height: 19rem;
 }
 
-/* Raised panel: a lit top bevel and a dark base, so it reads as a physical
-   plate rather than a flat rectangle. */
-.panel {
-  position: relative;
-  background-image: var(--panel-grad);
-  box-shadow:
-    inset 0 1px 0 var(--bevel),
-    var(--shadow-md);
-}
+/* ==========================================================================
+   Motion
+   ========================================================================== */
 
-/* Ornamental gold hairline across the top of a feature plate. This one detail
-   does most of the "premium game panel" work. */
-.plate-gold::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--edge-gold) 18%,
-    var(--gold) 50%,
-    var(--edge-gold) 82%,
-    transparent
-  );
-  pointer-events: none;
-}
-
-/* Corner ticks — angular framing without an image asset. */
-.corner-ticks::after {
-  content: '';
-  position: absolute;
-  inset: 5px;
-  pointer-events: none;
-  background:
-    linear-gradient(var(--edge-gold), var(--edge-gold)) left top / 12px 1px no-repeat,
-    linear-gradient(var(--edge-gold), var(--edge-gold)) left top / 1px 12px no-repeat,
-    linear-gradient(var(--edge-gold), var(--edge-gold)) right bottom / 12px 1px no-repeat,
-    linear-gradient(var(--edge-gold), var(--edge-gold)) right bottom / 1px 12px no-repeat;
-  opacity: 0.75;
-}
-
-/* Gradient wash behind a panel heading, fading to nothing. */
-.panel-head {
-  background-image: var(--header-grad);
-}
-
-/* Chamfered corners — the angular MOBA-panel silhouette. Applied to feature
-   panels only; every clipped corner costs readable area, so dense tables keep
-   ordinary rounded corners. */
-.chamfer {
-  clip-path: polygon(
-    18px 0,
-    100% 0,
-    100% calc(100% - 18px),
-    calc(100% - 18px) 100%,
-    0 100%,
-    0 18px
-  );
-}
-
-.chamfer-sm {
-  clip-path: polygon(
-    8px 0,
-    100% 0,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    0 100%,
-    0 8px
-  );
-}
-
-/* A clip-path cuts the border off, so chamfered panels wear their outline as
-   an inset ring instead. */
-.chamfer-ring {
-  box-shadow:
-    inset 0 0 0 1px var(--border-strong),
-    inset 0 1px 0 var(--bevel);
-}
-
-.glass-edge {
-  position: relative;
-}
-.glass-edge::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: var(--glass-edge-opacity);
-  background: linear-gradient(180deg, var(--glass-highlight), transparent 42%);
-}
-
-/* Accent glows. Reserved for the headline metric and earned states — if
-   everything glows, nothing stands out. */
-.glow-accent {
-  box-shadow:
-    inset 0 0 0 1px var(--accent-glow),
-    0 0 24px -6px var(--accent-glow),
-    var(--shadow-md);
-}
-
-.glow-gold {
-  box-shadow:
-    inset 0 0 0 1px var(--gold-glow),
-    0 0 26px -6px var(--gold-glow),
-    var(--shadow-md);
-}
-
-/* Section heading rule with an angular notch. */
-.rule-notch {
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    var(--border-strong),
-    transparent 70%
-  );
-}
-
-/* XP / progress track. The fill carries a moving sheen so a bar mid-progress
-   reads as active rather than stalled. */
-.xp-track {
-  position: relative;
-  overflow: hidden;
-  background: var(--surface-3);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-
-.xp-fill {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-}
-
-.xp-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.32),
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: xp-sheen 2.6s ease-in-out infinite;
-}
-
-@keyframes xp-sheen {
-  0%,
-  55% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.tabular {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Condensed, tracked-out label styling — the "HUD" voice. Used on labels
-   only; never on data, which must stay quick to read. */
-.hud {
-  text-transform: uppercase;
-  letter-spacing: 0.045em;
-  font-weight: 700;
-}
-
-/* Glossy button face: gradient + a top highlight, the way game buttons read.
-   Kept to buttons so it never competes with the data. */
-.btn-gloss {
-  position: relative;
-  overflow: hidden;
-}
-.btn-gloss::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 50% 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), transparent);
-  pointer-events: none;
-}
-
-/* Big hero numerals. */
-.numeral {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  font-weight: 800;
-}
-
-/* Scrollbars, themed so they don't punch a bright hole in dark mode. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--axis) 70%, transparent) transparent;
-}
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: color-mix(in oklab, var(--axis) 70%, transparent);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
-}
-*:hover::-webkit-scrollbar-thumb {
-  background-color: var(--axis);
-}
-
-/* Honour the OS setting: the sheen and any transition are decorative. */
 @media (prefers-reduced-motion: reduce) {
+  .grid-lights {
+    display: none;
+  }
+
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ==========================================================================
+   The lifecycle rail — see components/lifecycle-rail.tsx
+
+   Horizontal on a desk, vertical on a phone. Both are the same idea: one
+   track, nodes on it, the travelled part lit.
+   ========================================================================== */
+
+.lifecycle {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0;
+  padding-top: 0.25rem;
+}
+
+/* The track sits at the vertical centre of the node row, and runs between the
+   FIRST and LAST node centres — hence the half-step inset on each side. */
+.lifecycle__track {
+  position: absolute;
+  top: 0.25rem;
+  left: calc(50% / var(--steps, 7));
+  right: calc(50% / var(--steps, 7));
+  height: 2px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+/* The travelled part. The full track spans (100% - one step), so the lit run
+   is that length scaled by --frac. */
+.lifecycle__track--lit {
+  right: auto;
+  width: calc(var(--frac) * (100% - 100% / var(--steps)));
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.lifecycle__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.5rem;
+  text-align: center;
+}
+
+.lifecycle__node {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  box-shadow: 0 0 0 3px var(--glass);
+}
+
+.lifecycle__step[data-state='done'] .lifecycle__node {
+  background: var(--accent);
+}
+
+/* The money moment. Bigger, ringed, and pulled up a pixel so it sits proud of
+   the track — the one node you should find without reading. */
+.lifecycle__step[data-state='money'] .lifecycle__node {
+  width: 18px;
+  height: 18px;
+  margin-top: -3px;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--glass),
+    0 0 0 5px var(--accent-soft),
+    0 0 14px 2px var(--accent-glow, var(--accent-soft));
+}
+
+/* An ending, not an error. Grey — never the categorical green, never red. */
+.lifecycle__step[data-state='ended'] .lifecycle__node {
+  background: var(--axis);
+}
+
+.lifecycle__step[data-state='pending'] .lifecycle__node {
+  background: transparent;
+  border: 2px solid var(--border-strong);
+}
+
+.lifecycle__label {
+  margin-top: 0.25rem;
+  font-size: 9.5px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.lifecycle__date {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.lifecycle__step[data-state='pending'] .lifecycle__date {
+  color: var(--text-muted);
+}
+
+.lifecycle__step[data-state='money'] .lifecycle__date {
+  color: var(--accent);
+}
+
+.lifecycle__note {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* -- phone: the same rail, stood on its end --------------------------------
+   Seven columns on a 390px screen gives each step ~50px, which cannot hold a
+   date. Rotating the rail keeps every label readable. */
+@media (max-width: 640px) {
+  .lifecycle {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    row-gap: 1.25rem;
+    padding-left: 0.25rem;
+  }
+
+  .lifecycle__track {
+    top: 0.5rem;
+    bottom: 1.5rem;
+    left: 5px;
+    right: auto;
+    width: 2px;
+    height: auto;
+    margin-top: 0;
+  }
+
+  .lifecycle__track--lit {
+    bottom: auto;
+    width: 2px;
+    /* Same --frac, re-read as a height. The vertical track is inset 0.5rem at
+       the top and 1.5rem at the bottom, so its run is 100% - 2rem. */
+    height: calc(var(--frac) * (100% - 2rem));
+  }
+
+  .lifecycle__step {
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    column-gap: 0.875rem;
+    align-items: start;
+    text-align: left;
+    padding: 0;
+  }
+
+  .lifecycle__node {
+    grid-row: 1 / span 3;
+  }
+
+  .lifecycle__step[data-state='money'] .lifecycle__node {
+    margin-left: -3px;
+  }
+
+  .lifecycle__label {
+    margin-top: 0;
   }
 }

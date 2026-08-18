@@ -92,6 +92,9 @@ class ApiClient:
     def put(self, url: str, *, json=None, headers=None):
         return self._client.put(url, json=json, headers=self._merge(headers))
 
+    def patch(self, url: str, *, json=None, headers=None):
+        return self._client.patch(url, json=json, headers=self._merge(headers))
+
     def json(self, url: str, *, params=None, headers=None):
         response = self.get(url, params=params, headers=headers)
         assert response.status_code == 200, f"{url} → {response.status_code} {response.text[:300]}"

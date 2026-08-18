@@ -95,7 +95,7 @@ export function Donut({
           {/* Centre figure. Percentages are short, so it fits inside the ring
               at every size; the caption is allowed two lines at most. */}
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-4">
-            <span className="numeral text-xl leading-none text-primary @[20rem]:text-2xl">
+            <span className="figure text-xl leading-none text-primary @[20rem]:text-2xl">
               {centreValue}
             </span>
             <span className="mt-1 line-clamp-2 text-center text-[11px] leading-tight text-secondary">
@@ -126,11 +126,11 @@ export function Donut({
               </span>
               {/* Numbers never wrap: a count breaking onto its own line reads
                   as two separate values. */}
-              <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap">
-                <span className="tabular font-semibold text-primary">
+              <span className="flex shrink-0 items-baseline gap-2.5 whitespace-nowrap">
+                <span className="tabular min-w-[3ch] text-right font-semibold text-primary">
                   {fmtCount(a.value)}
                 </span>
-                <span className="tabular text-xs text-muted">
+                <span className="tabular min-w-[4.5ch] text-right text-xs text-muted">
                   {percent(a.fraction, 1)}
                 </span>
               </span>

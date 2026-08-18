@@ -1,0 +1,7 @@
+$ next start --port 3000
+   ▲ Next.js 15.5.22
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.8.105:3000
+
+ ✓ Starting...
+ ✓ Ready in 630ms

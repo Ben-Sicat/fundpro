@@ -48,9 +48,24 @@ export function AreaChart({
 
   const values = data.map((d) => (metric === 'value' ? d.value : d.signups))
   const max = Math.max(...values, 1)
-  const niceMax = useMemo(() => {
-    const mag = Math.pow(10, Math.floor(Math.log10(max)))
-    return Math.ceil(max / mag) * mag
+  /**
+   * Pick a round STEP first, then take the ceiling to a multiple of it.
+   *
+   * Rounding the ceiling and then quartering it is what produced axes like
+   * ₱30K / ₱23K / ₱15K / ₱8K — a tidy top and three arbitrary numbers under
+   * it. Stepping by 1, 2, 2.5, 5 or 10 × a power of ten means every gridline
+   * is a number a person would say out loud.
+   */
+  const { niceMax, step } = useMemo(() => {
+    const rawStep = max / 4
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)))
+    const norm = rawStep / mag
+    const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10
+    const s = nice * mag
+    let top = Math.ceil(max / s) * s
+    // Headroom: a peak flush against the top border reads as clipped data.
+    if (max / top > 0.95) top += s
+    return { niceMax: top, step: s }
   }, [max])
 
   const label = (v: number) => (metric === 'value' ? moneyCompact(v) : fmtCount(v))
@@ -64,10 +79,12 @@ export function AreaChart({
     .join(' ')
   const areaPath = `${linePath} L100,100 L0,100 Z`
 
-  const ticks = [1, 0.75, 0.5, 0.25, 0].map((f) => ({
-    v: niceMax * f,
-    topPct: (1 - f) * 100,
-  }))
+  // Generated from the step, top down, so the count follows the data range
+  // instead of always being five.
+  const ticks = Array.from({ length: Math.round(niceMax / step) + 1 }, (_, k) => {
+    const v = niceMax - k * step
+    return { v, topPct: (1 - v / niceMax) * 100 }
+  })
 
   function onMove(e: React.MouseEvent<HTMLDivElement>) {
     const rect = plotRef.current?.getBoundingClientRect()
@@ -120,7 +137,10 @@ export function AreaChart({
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full"
+          // overflow-visible: the last point sits at x=100, so half the 2px
+          // stroke fell outside the viewport and the line looked sliced off at
+          // the panel edge. Same at the top when a peak reaches the axis max.
+          className="absolute inset-0 h-full w-full overflow-visible"
           role="img"
           aria-label={`Weekly ${metric === 'value' ? 'pledged value' : 'sign-ups'}`}
         >

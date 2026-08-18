@@ -217,3 +217,70 @@ def test_uploads_are_listed_newest_first(loaded: ApiClient) -> None:
 
 def test_impact_of_an_unknown_upload_is_a_404(api: ApiClient) -> None:
     assert api.get("/uploads/upl_999999/impact").status_code == 404
+
+
+def test_re_uploading_does_not_duplicate_the_review_queue(
+    api: ApiClient, tmp_path: Path
+) -> None:
+    """Found in the demo: uploading the same bank file twice put every
+    unmatched row on the review list twice, so 121 became 242.
+
+    Billing events already deduped; the review queue did not. Left alone, the
+    count grows every morning and stops meaning anything.
+    """
+    # No applications loaded, so every bank row is an unmatched exception.
+    status = build_status_workbook(tmp_path / "s.xlsx")
+
+    upload(api, status)
+    first = len(api.json("/exceptions"))
+    assert first > 0
+
+    upload(api, status)
+    assert len(api.json("/exceptions")) == first
+
+
+def test_a_resolved_exception_can_reappear_if_the_problem_recurs(
+    api: ApiClient, tmp_path: Path
+) -> None:
+    """Dedupe applies to OPEN rows only — a problem someone signed off on and
+    which then happens again is worth surfacing."""
+    status = build_status_workbook(tmp_path / "s.xlsx")
+    upload(api, status)
+
+    first = api.json("/exceptions")[0]
+    api.post(f"/exceptions/{first['id']}/resolve")
+    open_before = len(api.json("/exceptions", params={"resolved": False}))
+
+    upload(api, status)
+    assert len(api.json("/exceptions", params={"resolved": False})) == open_before + 1
+
+
+def test_fixing_the_cause_clears_the_review_item(api: ApiClient, tmp_path: Path) -> None:
+    """The full in-app remedy: a row is set aside for an unknown bank code,
+    someone classifies the code, they re-upload, and the row goes through AND
+    the original complaint closes itself.
+
+    Leaving the stale item behind was the gap — the operator fixes the problem
+    and the queue still shows the same count.
+    """
+    upload(api, build_apps_workbook(tmp_path / "apps.xlsx"))
+    upload(api, build_status_workbook(tmp_path / "status.xlsx"))
+
+    unknown = [e for e in api.json("/exceptions") if e["problem"] == "unknown_status_id"]
+    assert unknown, "expected an unknown-code exception"
+    serial = unknown[0]["serialNo"]
+
+    # Classify it, exactly as the review-queue form does.
+    api.put(
+        "/settings/status-codes",
+        json={"statusId": 77, "description": "Chargeback", "classification": "failed_final"},
+    )
+    upload(api, build_status_workbook(tmp_path / "status2.xlsx"))
+
+    still_open = [
+        e
+        for e in api.json("/exceptions", params={"resolved": False})
+        if e["serialNo"] == serial and e["problem"] == "unknown_status_id"
+    ]
+    assert still_open == [], "the review item should close once the row consolidates"
+    assert 77 in [e["statusId"] for e in api.json(f"/pledges/{serial}/events")]

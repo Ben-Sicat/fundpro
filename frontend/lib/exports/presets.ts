@@ -10,7 +10,7 @@
  * not know the report catalogue can still find the right file by asking "who
  * needs this?" — and that grouping matches the services the agency bills for.
  */
-import type { PledgeFilters } from '@/lib/data'
+import type { PledgeFilters } from '@/lib/data/filters'
 
 export type Audience =
   | 'Safety net'
@@ -275,6 +275,8 @@ export interface UploadImpact {
   exceptions: number
   /** Whether this file changed the master copies at all. */
   changedMaster: boolean
+  /** Applications created by this file. Only an Apps Tracker adds any. */
+  newPledges?: number
   suggested: SuggestedExport[]
 }
 

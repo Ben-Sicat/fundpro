@@ -74,6 +74,11 @@ export interface Pledge {
   debitDate: string | null
   verifiedAt: string | null
   cancellationDate: string | null
+  /** Free text, in the operator's words. Only set alongside the date. */
+  cancellationReason: string | null
+  /** 'bank' = a status code said so. 'manual' = a human recorded it here. */
+  cancellationSource: 'bank' | 'manual' | null
+  cancelledBy: string | null
   invoicedDate: string | null
   payoutDate: string | null
 
@@ -85,6 +90,10 @@ export interface Pledge {
   currentStatusDate: string | null
   currentClassification: StatusClassification | null
   attempts: number
+  /** Attempts the bank rejected. */
+  failedAttempts: number
+  /** Attempts it took to bill, counting the successful one. Null if never. */
+  attemptsToSuccess: number | null
   cancelled: boolean
   invoiceNo: string | null
   commissionAmount: number | null
@@ -234,4 +243,42 @@ export interface Kpis {
   verifiedPct: number
   activeDonors: number
   cancelledThisMonth: number
+}
+
+/** One column a custom export can include. */
+export interface ExportField {
+  key: string
+  label: string
+  group: string
+  pii: 'none' | 'masked' | 'full'
+}
+
+/** A fundraiser with their performance rolled up. */
+export interface FundraiserRecord {
+  name: string
+  code: string
+  active: boolean
+  /** First day on the team. */
+  startDate: string
+  /** Last day, or null while still active. */
+  endDate: string | null
+  /** A fundraiser can report to more than one leader. */
+  leaderNames: string[]
+  signups: number
+  realized: number
+  realizationRate: number
+  pledgedValue: number
+  avgPledge: number
+  sites: string[]
+}
+
+/** A leader with their team's performance rolled up. */
+export interface LeaderRecord {
+  name: string
+  teamSize: number
+  fundraiserNames: string[]
+  signups: number
+  realized: number
+  realizationRate: number
+  pledgedValue: number
 }

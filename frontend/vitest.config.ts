@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)).replace(/\/$/, ''),
+      // `server-only` is a build-time guard with no runtime module, so it has
+      // to be stubbed here. The guard still applies to `next build`, which is
+      // where a client-bundle leak would actually happen.
+      'server-only': fileURLToPath(new URL('./test/server-only-stub.ts', import.meta.url)),
     },
   },
   test: {

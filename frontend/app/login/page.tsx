@@ -108,7 +108,7 @@ export default async function LoginPage({
             <ThemeToggle />
           </div>
 
-          <div className="glass glass-edge rounded-xl border border-line p-7 shadow-float">
+          <div className="panel border border-line p-7 shadow-float">
             <div className="mb-6 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight text-primary">

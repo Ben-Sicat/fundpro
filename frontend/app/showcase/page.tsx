@@ -65,7 +65,7 @@ export default async function ShowcasePage({
       <header className="flex shrink-0 items-center justify-between gap-4 pb-4">
         <div className="flex items-center gap-3">
           <span
-            className="chamfer-sm grid size-10 place-items-center text-lg font-bold text-on-accent lg:size-12"
+            className="rounded-[var(--r-sm)] grid size-10 place-items-center text-lg font-bold text-on-accent lg:size-12"
             style={{
               background: 'linear-gradient(135deg, var(--accent), var(--series-3))',
             }}
@@ -94,33 +94,30 @@ export default async function ShowcasePage({
             label: 'Donors that stick',
             value: percent(kpis.realizationRate, 1),
             sub: `${count(submitted)} sent to bank`,
-            glow: 'glow-accent',
+            lead: true,
           },
           {
             label: 'Sign-ups',
             value: count(kpis.signups),
             sub: 'donors recruited',
-            glow: '',
           },
           {
             label: 'Monthly giving',
             value: moneyCompact(kpis.pledgedValue),
             sub: `avg ${moneyCompact(kpis.avgPledge)}`,
-            glow: 'glow-gold',
           },
           {
             label: 'Days to first payment',
             value: kpis.avgLagDays.toFixed(1),
             sub: 'sign-up to money in',
-            glow: '',
           },
         ].map((s) => (
           <div
             key={s.label}
-            className={`panel chamfer chamfer-ring plate-gold p-4 lg:p-5 ${s.glow}`}
+            className={`panel p-4 lg:p-5 ${s.lead ? 'stat-lead' : ''}`}
           >
             <p className="hud text-[10px] text-muted lg:text-xs">{s.label}</p>
-            <p className="numeral mt-1 text-4xl leading-none text-primary lg:text-6xl">
+            <p className="figure mt-2 text-4xl leading-none text-primary lg:text-6xl">
               {s.value}
             </p>
             <p className="mt-2 text-[11px] text-muted lg:text-sm">{s.sub}</p>
@@ -131,7 +128,7 @@ export default async function ShowcasePage({
       {/* ---- Charts. min-h-0 lets the flex children actually shrink, which is
               what keeps the whole thing inside one screen. ---- */}
       <div className="mt-3 grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-3">
-        <div className="panel chamfer chamfer-ring plate-gold flex min-h-0 flex-col p-4 lg:col-span-2">
+        <div className="panel flex min-h-0 flex-col p-4 lg:col-span-2">
           <p className="hud shrink-0 text-xs text-secondary lg:text-sm">
             Monthly giving signed up each week
           </p>
@@ -140,7 +137,7 @@ export default async function ShowcasePage({
           </div>
         </div>
 
-        <div className="panel chamfer chamfer-ring plate-gold flex min-h-0 flex-col p-4">
+        <div className="panel flex min-h-0 flex-col p-4">
           <p className="hud shrink-0 text-xs text-secondary lg:text-sm">
             Billing results
           </p>
@@ -161,12 +158,12 @@ export default async function ShowcasePage({
 
       {/* ---- Leaderboard + sites ---- */}
       <div className="mt-3 grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="panel chamfer chamfer-ring plate-gold p-4">
+        <div className="panel p-4">
           <p className="hud text-xs text-secondary lg:text-sm">Top fundraisers</p>
           <ol className="mt-2 space-y-1.5">
             {top.map((t, i) => (
               <li key={t.name} className="flex items-center gap-3">
-                <span className="numeral w-5 shrink-0 text-sm text-muted lg:text-base">
+                <span className="tabular w-5 shrink-0 text-sm text-muted lg:text-base">
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -174,7 +171,7 @@ export default async function ShowcasePage({
                     <span className="truncate text-sm font-semibold text-primary lg:text-lg">
                       {t.name}
                     </span>
-                    <span className="numeral shrink-0 text-sm text-primary lg:text-lg">
+                    <span className="tabular shrink-0 text-sm text-primary lg:text-lg">
                       {count(t.realized)}
                       <span className="ml-1.5 text-[11px] font-normal text-muted lg:text-sm">
                         {percent(t.realizationRate, 0)}
@@ -196,7 +193,7 @@ export default async function ShowcasePage({
           </ol>
         </div>
 
-        <div className="panel chamfer chamfer-ring plate-gold p-4">
+        <div className="panel p-4">
           <p className="hud text-xs text-secondary lg:text-sm">Sites</p>
           <ol className="mt-2 space-y-1.5">
             {sites.slice(0, 5).map((s) => (
@@ -210,7 +207,7 @@ export default async function ShowcasePage({
                     {s.charityCode} · {s.staffCount} staff
                   </span>
                 </span>
-                <span className="numeral shrink-0 text-primary">
+                <span className="tabular shrink-0 text-primary">
                   {count(s.signups)}
                   <span className="ml-1.5 text-[11px] font-normal text-muted lg:text-sm">
                     {percent(s.realizationRate, 0)}

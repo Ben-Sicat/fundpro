@@ -5,6 +5,7 @@ import { permissionsFor } from '@/lib/auth/permissions'
 import { Sidebar, type NavGroup } from '@/components/shell/sidebar'
 import { MobileNav } from '@/components/shell/mobile-nav'
 import { ThemeToggle } from '@/components/shell/theme-toggle'
+import { GridTracer } from '@/components/grid-tracer'
 import { getExceptions } from '@/lib/data'
 import { initials } from '@/lib/format'
 
@@ -79,12 +80,13 @@ export default async function AppLayout({
 
   return (
     <div className="app-canvas min-h-screen">
+      <GridTracer />
       {/* Topbar: glass, so the page washes through as it scrolls under. */}
       <header className="glass-strong sticky top-0 z-40 border-b border-line">
         <div className="flex h-14 items-center gap-2 px-3 sm:gap-4 sm:px-4">
           <Link href="/app" className="flex shrink-0 items-center gap-2.5">
             <span
-              className="chamfer-sm grid size-8 place-items-center text-sm font-bold text-on-accent shadow-sm"
+              className="rounded-[var(--r-sm)] grid size-8 place-items-center text-sm font-bold text-on-accent shadow-sm"
               style={{
                 background:
                   'linear-gradient(135deg, var(--accent), var(--series-3))',
@@ -103,7 +105,7 @@ export default async function AppLayout({
           <div className="flex-1" />
 
           {isCharityViewer ? (
-            <span className="chamfer-sm hidden bg-accent-soft px-2 py-1 text-xs font-medium text-accent sm:inline">
+            <span className="rounded-[var(--r-sm)] hidden bg-accent-soft px-2 py-1 text-xs font-medium text-accent sm:inline">
               Scoped to {actor.charityId}
             </span>
           ) : null}
@@ -112,7 +114,7 @@ export default async function AppLayout({
 
           <div className="flex items-center gap-2.5 border-l border-line pl-2 sm:pl-3">
             <span
-              className="chamfer-sm grid size-8 place-items-center bg-surface-3 text-[11px] font-semibold text-secondary"
+              className="rounded-[var(--r-sm)] grid size-8 place-items-center bg-surface-3 text-[11px] font-semibold text-secondary"
               aria-hidden
             >
               {initials(session.user.name ?? session.user.email)}
@@ -136,7 +138,7 @@ export default async function AppLayout({
               <button
                 type="submit"
                 title="Sign out"
-                className="chamfer-sm flex min-h-9 items-center border border-line-strong bg-surface-2 px-2.5 text-xs text-secondary transition-colors hover:bg-surface-3 hover:text-primary"
+                className="rounded-[var(--r-sm)] flex min-h-9 items-center border border-line-strong bg-surface-2 px-2.5 text-xs text-secondary transition-colors hover:bg-surface-3 hover:text-primary"
               >
                 <span className="hidden sm:inline">Sign out</span>
                 <span className="sm:hidden" aria-hidden>
@@ -150,7 +152,7 @@ export default async function AppLayout({
       </header>
 
       <div className="flex">
-        <aside className="glass sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 border-r border-line lg:block">
+        <aside className="glass-strong sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 border-r border-line lg:block">
           <Sidebar groups={groups} />
         </aside>
 

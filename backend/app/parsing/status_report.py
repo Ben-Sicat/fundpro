@@ -49,6 +49,8 @@ class StatusReportRecord:
     recruiter_code: str | None
     recruiter_batch_no: str | None
     submitted_at: date | None
+    #: The bank's DEBIT_CREDIT_CARD column: 'CREDIT' / 'DEBIT'.
+    instrument_hint: str | None
     row_number: int
     raw_row: dict[str, Any] = field(repr=False)
 
@@ -158,6 +160,7 @@ def _parse_row(row: RawRow) -> StatusReportRecord:
         recruiter_code=field_value("Recruiter Code", parse_text),
         recruiter_batch_no=field_value("Recruiter Batch No", parse_text),
         submitted_at=field_value("Recruiter Submission Date", parse_date),
+        instrument_hint=field_value("DEBIT_CREDIT_CARD", parse_text),
         row_number=row.number,
         raw_row=row.as_dict(),
     )

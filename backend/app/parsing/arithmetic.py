@@ -35,7 +35,8 @@ def eval_literal_arithmetic(expr: object) -> Decimal | None:
     if not isinstance(expr, str):
         return None
     text = expr.strip()
-    if text.startswith("="):
+    # Strip EVERY leading '=': a formula copied as text can arrive as '==75*13'.
+    while text.startswith("="):
         text = text[1:].strip()
     if not text or len(text) > _MAX_LENGTH:
         return None

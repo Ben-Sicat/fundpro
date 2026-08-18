@@ -15,7 +15,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Button, Card, Input, Select, cx } from '@/components/ui'
-import { DATE_BASIS_LABELS, type DateBasis } from '@/lib/data'
+import { DATE_BASIS_LABELS, type DateBasis } from '@/lib/data/filters'
 import {
   FILTER_PRESETS,
   activeFilterSummary,
@@ -209,14 +209,18 @@ export function FilterBar({
             <input type="hidden" name="view" value={current.view} />
           ) : null}
 
-          <Button type="submit" variant="primary" size="sm">
-            Apply
-          </Button>
-          <Link href={action}>
-            <Button variant="ghost" size="sm">
-              Reset
+          {/* Kept as one unit. As separate flex children the pair split across
+              the wrap, stranding Reset alone on a row of its own. */}
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="submit" variant="primary" size="sm">
+              Apply
             </Button>
-          </Link>
+            <Link href={action}>
+              <Button variant="ghost" size="sm">
+                Reset
+              </Button>
+            </Link>
+          </div>
         </form>
       ) : null}
     </Card>

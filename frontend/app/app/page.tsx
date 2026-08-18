@@ -153,7 +153,7 @@ export default async function OverviewPage({
 
       {/* ---- Primary chart + results split ---- */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card feature className="xl:col-span-2">
+        <Card className="xl:col-span-2">
           <CardHeader
             title="Monthly giving over time"
             subtitle="How much monthly giving was signed up each week"
@@ -171,7 +171,7 @@ export default async function OverviewPage({
           <AreaChart data={series} metric="value" />
         </Card>
 
-        <Card feature>
+        <Card>
           <CardHeader
             title="Billing results"
             subtitle={`${count(submitted)} sent to the bank so far`}
@@ -194,7 +194,7 @@ export default async function OverviewPage({
           Performance
         </SectionTitle>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card feature>
+          <Card>
             <CardHeader
               title="Top fundraisers"
               subtitle="By donors who actually started paying"

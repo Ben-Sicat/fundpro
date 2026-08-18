@@ -1,12 +1,12 @@
 /**
  * Stat tile — the "is it even a chart?" answer for a single headline number.
  *
- * Chamfered plate with a lit top bevel. Glass is safe here because a tile is a
- * container, not a plotting surface. The value wears a text token, never a
- * series colour.
+ * A console readout: a wide-tracked label above, the figure in the mono face
+ * below, supporting detail beneath that. The figure is the loud part; nothing
+ * else in the tile competes with it.
  *
- * `accent` is for the ONE headline metric per view. If every tile glows,
- * nothing is emphasised.
+ * `accent` is for the ONE headline metric per view. If every tile is
+ * emphasised, nothing is.
  */
 import type { ReactNode } from 'react'
 import { Delta, cx } from '@/components/ui'
@@ -22,6 +22,12 @@ export function StatTile({
   sparkColor,
   hint,
   accent = false,
+  /**
+   * Money the business has earned or owes. Kept as a distinct flag from
+   * `accent` because a view can have a lead metric AND a money figure, but
+   * it no longer paints the tile gold — the mono face and the currency symbol
+   * already say "this is money".
+   */
   gold = false,
 }: {
   label: string
@@ -33,46 +39,47 @@ export function StatTile({
   sparkColor?: string
   hint?: ReactNode
   accent?: boolean
-  /** Reward framing — earnings and other "won" numbers. */
   gold?: boolean
 }) {
   return (
     <div
       className={cx(
-        '@container panel chamfer chamfer-ring glass glass-edge relative overflow-hidden p-3 @[14rem]:p-4',
-        accent && 'glow-accent',
-        gold && 'glow-gold',
+        '@container panel relative flex min-h-[7.5rem] flex-col justify-between p-5',
+        accent && 'stat-lead',
       )}
+      data-money={gold ? '' : undefined}
     >
-      <p className="hud text-[11px] text-secondary @[14rem]:text-xs">{label}</p>
+      <p className="hud text-[10px] text-muted">{label}</p>
 
-      <div className="mt-1.5 flex items-end justify-between gap-2">
+      <div className="mt-4 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex items-baseline gap-1">
+          <p className="flex items-baseline gap-1.5">
             <span
               className={cx(
-                'font-semibold tracking-tight text-primary',
+                // `.figure`, not `.tabular`: mono centres the period in a
+                // full-width cell, so at this size "50.0%" reads "50 . 0%".
+                'figure leading-none text-primary',
                 // Steps down on phones so a wide figure never overflows its
                 // tile in a 2-up grid.
                 accent
-                  ? 'text-2xl @[14rem]:text-3xl'
-                  : 'text-xl @[14rem]:text-2xl',
+                  ? 'text-[30px] @[14rem]:text-[36px]'
+                  : 'text-[26px] @[14rem]:text-[30px]',
               )}
             >
               {value}
             </span>
             {unit ? (
-              <span className="text-[11px] font-medium text-secondary @[14rem]:text-xs">
-                {unit}
-              </span>
+              <span className="text-xs font-medium text-muted">{unit}</span>
             ) : null}
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             {delta !== undefined ? (
               <Delta value={delta} suffix={deltaSuffix ?? 'pp'} />
             ) : null}
             {hint ? (
-              <span className="text-[11px] leading-snug text-secondary @[14rem]:text-xs">{hint}</span>
+              <span className="text-[12px] leading-snug text-secondary">
+                {hint}
+              </span>
             ) : null}
           </div>
         </div>

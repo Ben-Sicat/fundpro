@@ -45,7 +45,12 @@ export default async function PayrollPage() {
             review and approve it.
           </p>
         </div>
-        <Button variant="primary" size="sm">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled
+          title="The draft below is already live — approval is not built yet"
+        >
           Generate draft run
         </Button>
       </div>
@@ -63,14 +68,14 @@ export default async function PayrollPage() {
       </div>
 
       {/* ---- Draft run, derived ---- */}
-      <Card feature glow="accent">
+      <Card lead>
         <CardHeader
           title="Draft run"
           subtitle={`${derived.cutoff.label} · pays ${date(derived.cutoff.runDate)}`}
           action={
             <span className="flex gap-2">
-              <Button size="sm">Review lines</Button>
-              <Button size="sm" variant="gold">
+              <Button size="sm" disabled title="Coming soon">Review lines</Button>
+              <Button size="sm" variant="primary">
                 Approve &amp; lock
               </Button>
             </span>

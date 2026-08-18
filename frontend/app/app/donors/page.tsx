@@ -101,7 +101,7 @@ One card per person. If someone signed up twice, we flag it so nobody gets paid 
                     </Td>
                     <Td align="right">
                       <span className="flex justify-end gap-1.5">
-                        <Button size="sm">Not a duplicate</Button>
+                        <Button size="sm" disabled title="Coming soon">Not a duplicate</Button>
                         <Button size="sm" variant="primary">
                           Review
                         </Button>
@@ -115,7 +115,7 @@ One card per person. If someone signed up twice, we flag it so nobody gets paid 
         </div>
       ) : null}
 
-      <Card glass>
+      <Card>
         <form className="flex items-end gap-3" action="/app/donors">
           <div className="max-w-md flex-1">
             <label htmlFor="q" className="mb-1.5 block text-xs font-medium text-secondary">

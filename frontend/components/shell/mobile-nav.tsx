@@ -127,7 +127,7 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
                     <Link
                       href={item.href}
                       className={cx(
-                        'chamfer-sm flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm',
+                        'rounded-[var(--r-sm)] flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm',
                         active
                           ? 'bg-accent-soft font-medium text-accent'
                           : 'bg-surface-2 text-secondary',

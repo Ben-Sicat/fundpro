@@ -209,9 +209,14 @@ def time_series(rows: list[Pledge], *, today: date, weeks: int = 16) -> list[Tim
         buckets[key] = TimePoint(date=key, signups=0, value=Decimal(0), realized=0)
 
     for p in rows:
-        if p.signup_date is None:
+        # Prefer the signup date. A record built from a bank file has no signup
+        # date — the bank never sees one — so fall back to the submission date
+        # rather than dropping the row out of the chart entirely. This is a
+        # DISPLAY fallback; nothing fabricates a stored signup date.
+        when = p.signup_date or p.submitted_at
+        if when is None:
             continue
-        week_index = (today - p.signup_date).days // 7
+        week_index = (today - when).days // 7
         if week_index < 1 or week_index > weeks:
             continue
         bucket = buckets[today - timedelta(days=week_index * 7)]
@@ -414,6 +419,7 @@ def fundraiser_records(store: Store, rows: list[Pledge]) -> list[FundraiserRecor
                 active=seed.active,
                 start_date=date.fromisoformat(seed.start_date) if seed.start_date else None,
                 end_date=date.fromisoformat(seed.end_date) if seed.end_date else None,
+                tier=seed.tier,
                 leader_names=list(seed.leader_names),
                 signups=len(group),
                 realized=len(realized),

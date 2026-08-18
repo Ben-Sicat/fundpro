@@ -29,6 +29,8 @@ def payroll_view(store: Store) -> list[PayrollPledge]:
             continue
         approved_by_serial.setdefault(event.serial_no, []).append(event.status_date)
 
+    tier_of = {f.name: f.tier for f in store.fundraisers}
+
     out: list[PayrollPledge] = []
     for p in store.all_pledges():
         if p.signup_date is None:
@@ -51,6 +53,8 @@ def payroll_view(store: Store) -> list[PayrollPledge]:
                 approved_billing_dates=tuple(sorted(approved_by_serial.get(p.serial_no, []))),
                 frequency=p.frequency or None,
                 verified=p.verified,
+                tier=tier_of.get(p.fundraiser_name),
+                instrument_type=p.instrument_type or None,
             )
         )
     return out

@@ -1,0 +1,47 @@
+$ next build
+   ▲ Next.js 15.5.22
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 40s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/15) ...
+   Generating static pages (3/15) 
+   Generating static pages (7/15) 
+   Generating static pages (11/15) 
+ ✓ Generating static pages (15/15)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                      139 B         102 kB
+├ ○ /_not-found                            994 B         103 kB
+├ ƒ /api/auth/[...nextauth]                139 B         102 kB
+├ ƒ /api/cron/[job]                        139 B         102 kB
+├ ƒ /api/exports/[code]                    139 B         102 kB
+├ ƒ /api/health                            139 B         102 kB
+├ ƒ /app                                 4.59 kB         112 kB
+├ ƒ /app/donors                            170 B         106 kB
+├ ƒ /app/exports                           170 B         106 kB
+├ ƒ /app/payroll                           157 B         104 kB
+├ ƒ /app/pledges                           170 B         106 kB
+├ ƒ /app/pledges/[serial]                  170 B         106 kB
+├ ƒ /app/settings                          139 B         102 kB
+├ ƒ /app/team                            3.33 kB         111 kB
+├ ƒ /app/team/[code]                     2.19 kB         108 kB
+├ ƒ /app/uploads                          2.2 kB         104 kB
+├ ○ /icon.svg                                0 B            0 B
+├ ƒ /login                                 657 B         103 kB
+└ ƒ /showcase                            3.85 kB         109 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/611-856c2d1aa6ec1510.js         46 kB
+  ├ chunks/ebf0c473-91500a9b869337da.js  54.2 kB
+  └ other shared chunks (total)          1.92 kB
+
+
+ƒ Middleware                               85 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

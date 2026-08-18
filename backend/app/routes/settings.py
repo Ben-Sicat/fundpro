@@ -160,6 +160,7 @@ class RulesIn(BaseModel):
     realization_basis: Literal["submitted", "signups"] | None = None
     pay_date_rule: Literal["eom_or_30", "nearest_business_day"] | None = None
     require_verification_for_payroll: bool | None = None
+    create_missing_from_bank: bool | None = None
     myr_to_php_rate: Decimal | None = Field(default=None, ge=0)
 
 
@@ -170,6 +171,7 @@ def get_rules(store: StoreDep) -> dict:
         "realizationBasis": s.realization_basis,
         "payDateRule": s.pay_date_rule,
         "requireVerificationForPayroll": s.require_verification_for_payroll,
+        "createMissingFromBank": s.create_missing_from_bank,
         "myrToPhpRate": float(s.myr_to_php_rate) if s.myr_to_php_rate is not None else None,
     }
 
@@ -182,6 +184,7 @@ def set_rules(body: RulesIn, store: StoreDep, actor: ActorDep) -> dict:
         "realization_basis",
         "pay_date_rule",
         "require_verification_for_payroll",
+        "create_missing_from_bank",
         "myr_to_php_rate",
     ):
         value = getattr(body, field_name)

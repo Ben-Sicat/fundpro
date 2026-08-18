@@ -48,7 +48,11 @@ const MONTHS = [
 /** '2026-07-08' → '8 Jul 2026'. */
 export function date(value: string | null | undefined): string {
   if (!value) return '—'
-  const [y, m, d] = value.split('-').map(Number)
+  // Tolerate a full timestamp. Without this the day part parses as
+  // Number('17T19:08:00Z') → NaN and the function falls through to printing
+  // the raw ISO string at the user, which is how '2026-08-17T19:08:00.302780Z'
+  // ended up on the uploads page.
+  const [y, m, d] = value.split('T')[0].split('-').map(Number)
   if (!y || !m || !d) return value
   return `${d} ${MONTHS[m - 1]} ${y}`
 }

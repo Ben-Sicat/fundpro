@@ -149,7 +149,7 @@ export default async function TeamPage({
             <SectionTitle hint="a fundraiser under two leaders counts toward both, so these do not sum to the company total">
               By leader
             </SectionTitle>
-            <Card feature>
+            <Card>
               <CardHeader
                 title="Leader roll-up"
                 subtitle="Team totals for each leader"
@@ -211,7 +211,7 @@ export default async function TeamPage({
       ) : (
         <div>
           <SectionTitle>Fundraisers</SectionTitle>
-          <Card feature>
+          <Card>
             <CardHeader
               title="Everyone on the floor"
               subtitle="Ranked by donors who actually started paying"

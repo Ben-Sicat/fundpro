@@ -5,6 +5,12 @@
  * light/dark is handled in one place. Every interactive control sets its own
  * text and background colour explicitly — inheriting `color` from an ancestor
  * is what made the original inputs invisible.
+ *
+ * Conventions this file enforces:
+ * - One radius (`--r`, `--r-sm`), one hairline, one soft elevation.
+ * - `.tabular` on anything that is a figure, date, serial or code; `.hud` on
+ *   console labels. Those two classes carry the monospace face, and applying
+ *   them is how a component says "this is data, not prose".
  */
 import type {
   ReactNode,
@@ -24,36 +30,21 @@ function cx(...parts: (string | false | null | undefined)[]): string {
 export function Card({
   children,
   className,
-  glass = false,
   padded = true,
-  /**
-   * Chamfered corners for feature panels. Off by default: a clipped corner
-   * costs readable area, so dense tables keep square-ish rounded corners.
-   */
-  feature = false,
-  /** Reserved for the headline metric and earned states. */
-  glow,
+  /** The one lead figure per view. Lit top edge, faint accent in the plane. */
+  lead = false,
 }: {
   children: ReactNode
   className?: string
-  /** Glass is for containers and chrome — never behind chart marks. */
-  glass?: boolean
   padded?: boolean
-  feature?: boolean
-  glow?: 'accent' | 'gold'
+  lead?: boolean
 }) {
   return (
     <section
       className={cx(
-        'panel',
-        feature
-          ? 'chamfer chamfer-ring plate-gold corner-ticks'
-          : 'rounded-xl border border-line',
-        glass ? 'glass glass-edge' : 'bg-surface',
-        glow === 'accent' && 'glow-accent',
-        glow === 'gold' && 'glow-gold',
-        !glow && 'shadow-card',
-        padded && 'p-4 sm:p-5',
+        'panel overflow-hidden',
+        lead && 'stat-lead',
+        padded && 'p-5',
         className,
       )}
     >
@@ -77,31 +68,28 @@ export function CardHeader({
   return (
     <div
       className={cx(
-        'panel-head flex items-start justify-between gap-3 border-b border-line px-4 py-3 sm:px-5',
+        'flex items-start justify-between gap-4 border-b border-line px-5 py-4',
         // Bleed to the panel edge only when the panel has padding to cancel.
-        bleed && '-mx-4 -mt-4 mb-4 sm:-mx-5 sm:-mt-5',
+        bleed && '-mx-5 -mt-5 mb-5',
       )}
     >
-      <div className="flex min-w-0 gap-2.5">
-        <span
-          aria-hidden
-          className="mt-0.5 h-4 w-0.5 shrink-0 rounded-full"
-          style={{ background: 'var(--gold-grad)' }}
-        />
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold tracking-tight text-primary sm:text-base">
-            {title}
-          </h2>
-          {subtitle ? (
-            <p className="mt-0.5 text-[13px] leading-snug text-secondary">{subtitle}</p>
-          ) : null}
-        </div>
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-semibold leading-tight text-primary">
+          {title}
+        </h2>
+        {subtitle ? (
+          <p className="mt-1 text-[13px] leading-snug text-secondary">{subtitle}</p>
+        ) : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   )
 }
 
+/**
+ * Divides a page into named regions. A quiet console label with a hairline
+ * running to the edge — it separates without competing with panel titles.
+ */
 export function SectionTitle({
   children,
   hint,
@@ -110,21 +98,14 @@ export function SectionTitle({
   hint?: string
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h2 className="hud flex items-center gap-2 text-xs text-primary sm:text-sm">
-        <span aria-hidden style={{ color: 'var(--gold)' }}>
-          ◆
-        </span>
-        {children}
-      </h2>
-      {/* Hint wraps below the heading on narrow screens rather than squeezing
-          the rule to nothing. */}
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <h2 className="hud text-[11px] text-muted">{children}</h2>
       {hint ? (
         <span className="order-last w-full text-xs text-secondary sm:order-none sm:w-auto">
           {hint}
         </span>
       ) : null}
-      <div className="rule-notch hidden flex-1 sm:block" />
+      <div className="hidden h-px flex-1 bg-line sm:block" />
     </div>
   )
 }
@@ -142,35 +123,29 @@ export function Button({
   ...rest
 }: {
   children: ReactNode
-  variant?: 'primary' | 'gold' | 'secondary' | 'ghost' | 'danger'
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   size?: 'sm' | 'md'
   type?: 'button' | 'submit'
   className?: string
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className'>) {
-  // Primary and gold wear gradient faces with a gloss highlight — the single
-  // most recognisable game-UI component treatment.
+  // Flat faces. The gradient-and-gloss treatment belonged to the earlier
+  // game-console direction and read as a toy in a finance tool.
   const variants = {
     primary:
-      'btn-gloss text-on-accent border-transparent shadow-md [background-image:var(--accent-grad)] hover:brightness-110',
-    gold:
-      'btn-gloss text-on-gold border-transparent shadow-md [background-image:var(--gold-grad)] hover:brightness-110',
+      'bg-accent text-on-accent border-transparent hover:bg-accent-hover shadow-sm',
     secondary:
-      'bg-surface-2 text-primary hover:bg-surface-3 border-line-strong shadow-sm',
-    ghost: 'bg-transparent text-secondary hover:bg-surface-2 border-transparent',
-    danger:
-      'bg-critical-soft text-critical-text hover:bg-critical-soft border-transparent',
+      'bg-surface-2 text-primary border-line-strong hover:bg-surface-3',
+    ghost: 'bg-transparent text-secondary border-transparent hover:bg-surface-2 hover:text-primary',
+    danger: 'bg-critical-soft text-critical-text border-transparent hover:brightness-110',
   }
   return (
     <button
       type={type}
       className={cx(
-        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-semibold transition-colors',
-        'disabled:pointer-events-none disabled:opacity-50',
-        // Comfortable touch targets: >=36px tall at sm, >=40px at md, so these
-        // stay tappable on a phone.
-        size === 'sm'
-          ? 'min-h-9 px-3 py-1.5 text-xs'
-          : 'min-h-11 px-5 py-2.5 text-sm tracking-wide',
+        'inline-flex items-center justify-center gap-1.5 whitespace-nowrap border font-medium transition-colors',
+        'rounded-[var(--r-sm)] disabled:pointer-events-none disabled:opacity-50',
+        // Comfortable touch targets: >=34px at sm, >=38px at md.
+        size === 'sm' ? 'min-h-[34px] px-3 text-xs' : 'min-h-[38px] px-4 text-sm',
         variants[variant],
         className,
       )}
@@ -181,42 +156,24 @@ export function Button({
   )
 }
 
+/** Shared shell for every text-entry control, so they cannot drift apart. */
+const FIELD =
+  'w-full rounded-[var(--r-sm)] border border-line-strong bg-surface-2 px-3 py-2 text-sm text-primary ' +
+  'placeholder:text-muted transition-colors ' +
+  'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25'
+
 export function Input({
   className,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={cx(
-        // Explicit text + background: the fix for the invisible-text bug.
-        'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-primary',
-        'placeholder:text-muted',
-        'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25',
-        'transition-colors',
-        className,
-      )}
-      {...rest}
-    />
-  )
+  return <input className={cx(FIELD, 'min-h-[38px]', className)} {...rest} />
 }
 
 export function Textarea({
   className,
   ...rest
 }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      className={cx(
-        // Explicit text + background, same as Input — never inherit `color`.
-        'w-full resize-y rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-primary',
-        'placeholder:text-muted',
-        'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25',
-        'transition-colors',
-        className,
-      )}
-      {...rest}
-    />
-  )
+  return <textarea className={cx(FIELD, 'resize-y', className)} {...rest} />
 }
 
 export function Label({
@@ -242,14 +199,7 @@ export function Select({
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
   return (
-    <select
-      className={cx(
-        'rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-primary',
-        'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25',
-        className,
-      )}
-      {...rest}
-    >
+    <select className={cx(FIELD, 'min-h-[38px] py-0', className)} {...rest}>
       {children}
     </select>
   )
@@ -294,12 +244,12 @@ export function Badge({
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2 py-[3px] text-[11px] font-medium',
         TONES[tone],
       )}
     >
       {dot ? (
-        <span className={cx('size-1.5 rounded-full', dotColor[tone])} />
+        <span className={cx('size-1.5 shrink-0 rounded-full', dotColor[tone])} />
       ) : null}
       {children}
     </span>
@@ -321,7 +271,7 @@ export function Delta({
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1 text-xs font-medium tabular',
+        'tabular inline-flex items-center gap-1 text-xs font-medium',
         up ? 'text-good-text' : 'text-critical-text',
       )}
     >
@@ -344,10 +294,12 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line-strong px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[var(--r)] border border-dashed border-line-strong px-6 py-14 text-center">
       <p className="text-sm font-medium text-primary">{title}</p>
-      <p className="mt-1 max-w-sm text-xs text-muted">{description}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
+      <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted">
+        {description}
+      </p>
+      {action ? <div className="mt-5">{action}</div> : null}
     </div>
   )
 }
@@ -360,7 +312,7 @@ export function Table({ children }: { children: ReactNode }) {
   // Wide tables scroll inside their own container; the page itself never
   // scrolls horizontally.
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:-mx-5 sm:px-5">
+    <div className="-mx-5 overflow-x-auto px-5">
       <table className="w-full min-w-full border-collapse text-sm">
         {children}
       </table>
@@ -399,9 +351,10 @@ export function Th({
     <th
       scope="col"
       className={cx(
-        // Horizontal padding keeps adjacent columns from running together
-        // ("₱750Semi-Annual"); the edge cells stay flush with the card.
-        'sticky top-0 z-10 whitespace-nowrap border-b border-line-strong bg-surface px-3 pb-2.5 pt-1 text-xs font-semibold text-secondary first:pl-0 last:pr-0',
+        // A console label, so the header row reads as chrome and the body
+        // reads as data. Sticky against the panel's own frost.
+        'hud sticky top-0 z-10 whitespace-nowrap border-b border-line-strong bg-glass px-3 pb-2.5 pt-1',
+        'text-[10px] text-muted first:pl-0 last:pr-0',
         align === 'right' && 'text-right',
         align === 'center' && 'text-center',
         align === 'left' && 'text-left',
@@ -428,7 +381,7 @@ export function Td({
   return (
     <td
       className={cx(
-        'border-b border-line/60 px-3 py-2.5 text-secondary first:pl-0 last:pr-0',
+        'border-b border-line px-3 py-2.5 text-[13px] text-secondary first:pl-0 last:pr-0',
         align === 'right' && 'text-right',
         align === 'center' && 'text-center',
         hide && HIDE_CLASS[hide],

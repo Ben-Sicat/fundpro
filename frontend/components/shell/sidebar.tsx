@@ -46,7 +46,7 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cx(
-                      'chamfer-sm group relative flex items-center gap-2.5 px-2.5 py-2 text-sm transition-colors',
+                      'rounded-[var(--r-sm)] group relative flex items-center gap-2.5 px-2.5 py-2 text-sm transition-colors',
                       active
                         ? 'bg-accent-soft font-medium text-accent'
                         : 'text-secondary hover:bg-surface-2 hover:text-primary',

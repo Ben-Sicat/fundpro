@@ -85,7 +85,9 @@ def build_a1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
             "CAMPAIGN CODE": p.campaign_code,
             "PROCESSING BANK": p.processing_bank,
             "DONATION AMOUNT": p.amount,
-            "FREQUENCY": p.frequency,
+            # Their original value, not our canonical one: A1 reproduces the
+            # sheet they already use, and their downstream tooling reads it.
+            "FREQUENCY": p.frequency_raw or p.frequency,
             "CREDIT CARD": p.masked_pan,
             "CARDTYPE": p.instrument_type,
             "EXPIRY": p.expiry,
@@ -134,7 +136,12 @@ def _status_row(store: Store, event: Any, pledge: Pledge | None) -> list[Any]:
         "Frequency": pledge.frequency if pledge else "",
         "Recruiter Submission Date": pledge.submitted_at if pledge else None,
         "AgentID": pledge.agent_id if pledge else "",
-        "DEBIT_CREDIT_CARD": (pledge.instrument_type or "").split()[0] if pledge else "",
+        # 'CREDIT CARD' -> 'CREDIT'. The real Apps Tracker leaves CARDTYPE
+        # blank on some rows, and "".split() is an empty list, so this cannot
+        # index blindly.
+        "DEBIT_CREDIT_CARD": next(iter((pledge.instrument_type or "").split()), "")
+        if pledge
+        else "",
         "LocationCode": pledge.location_name if pledge else "",
         "Channel": "F2F",
     }
@@ -324,6 +331,97 @@ def build_c3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
+def build_c4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+    """The payroll working sheet, in the client's OWN layout.
+
+    Column-for-column the sheet they build by hand each cutoff (read from
+    `Payroll Reference - FundPro.xlsx`, 2026-08-08): FR Name, Campaign, Donor
+    Name, Site, Sign-up Date, Card Type, Frequency, Pledge Amount, Age,
+    INCENTIVE, Serial #, STOPLIGHT.
+
+    Reproducing their layout rather than ours is the point — it drops straight
+    into the process they already run, and it is checkable against last
+    period's sheet.
+    """
+    from app.services import payroll, payroll_runs
+
+    today: date = opts.get("today") or datetime.now(UTC).date()
+    run = payroll_runs.derive_run(store, as_of=today)
+    commission_by_serial = {line.serial_no: line.commission for line in run.lines}
+    tier_of = {f.name: f.tier for f in store.fundraisers}
+    plans = store.settings.commission_plans
+    view = {p.serial_no: p for p in payroll_runs.payroll_view(store)}
+
+    headers = (
+        "FR Name", "Campaign", "Donor Name", "Site", "Sign-up Date", "Card Type",
+        "Frequency", "Pledge Amount", "Age", "INCENTIVE", "Serial #", "STOPLIGHT",
+    )
+    rows: list[list[Any]] = []
+    for p in analytics.select(store, filters):
+        commission = commission_by_serial.get(p.serial_no)
+        if commission is None:
+            # Not payable in this cutoff. Their sheet still lists the row with
+            # what it WOULD earn, so the reviewer can see why it is zero.
+            payroll_pledge = view.get(p.serial_no)
+            plan = payroll.plan_for_pledge(payroll_pledge, plans) if payroll_pledge else None
+            commission = (
+                payroll.commission_for(payroll_pledge, plan)
+                if payroll_pledge and plan
+                else Decimal(0)
+            )
+        rows.append(
+            [
+                p.fundraiser_name, p.charity_code, p.donor_name, p.site_name,
+                p.signup_date, p.instrument_type, p.frequency, p.amount,
+                _age(p.donor_dob, today), commission, p.serial_no,
+                tier_of.get(p.fundraiser_name) or "N/A",
+            ]
+        )
+    rows.sort(key=lambda r: (str(r[0]), str(r[10])))
+    return Report(headers=headers, rows=rows)
+
+
+def build_c5(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+    """Payslip summary — the pivot they build on top of the working sheet.
+
+    Their sheet ends in a `Row Labels / Sum of INCENTIVE` pivot: one line per
+    fundraiser with their total. This is that, plus the currency (which their
+    pivot cannot express) and the bonus and clawback columns their manual
+    version has no room for.
+    """
+    from app.services import payroll_runs
+
+    today: date = opts.get("today") or datetime.now(UTC).date()
+    run = payroll_runs.derive_run(store, as_of=today)
+    tier_of = {f.name: f.tier for f in store.fundraisers}
+
+    headers = (
+        "FR Name", "STOPLIGHT", "Currency", "Donors", "Sum of INCENTIVE",
+        "Bonuses", "Clawbacks (proposed)", "Take home", "Cutoff", "Pay date",
+    )
+    proposed: dict[tuple[str, str], Decimal] = {}
+    for c in run.clawbacks:
+        key = (c.fundraiser_name, c.currency)
+        proposed[key] = proposed.get(key, Decimal(0)) + c.original_commission
+
+    rows = [
+        [
+            net.fundraiser_name,
+            tier_of.get(net.fundraiser_name) or "N/A",
+            net.currency,
+            net.pledge_count,
+            net.gross,
+            net.bonuses,
+            proposed.get((net.fundraiser_name, net.currency), Decimal(0)),
+            net.net,
+            run.cutoff.label,
+            run.cutoff.run_date,
+        ]
+        for net in run.nets
+    ]
+    return Report(headers=headers, rows=rows)
+
+
 # ---------------------------------------------------------------------------
 # D — charity & financial
 # ---------------------------------------------------------------------------
@@ -444,6 +542,12 @@ TEMPLATES: tuple[TemplateSpec, ...] = (
     TemplateSpec("C3", "Fundraiser Performance Statement",
                  "Sign-ups, realization rate and earnings per fundraiser.",
                  "Payroll", "none", False, build_c3, counts=None),
+    TemplateSpec("C4", "Payroll Working Sheet (their layout)",
+                 "Column-for-column the sheet the payroll team builds by hand each cutoff.",
+                 "Payroll", "full", False, build_c4),
+    TemplateSpec("C5", "Payslip Summary",
+                 "One line per fundraiser: donors, incentive, bonuses, clawbacks, take home.",
+                 "Payroll", "none", False, build_c5, counts=None),
     TemplateSpec("D1", "Charity Invoice",
                  "Charge and clawback-credit lines.",
                  "Charity & financial", "masked", False, build_d1),

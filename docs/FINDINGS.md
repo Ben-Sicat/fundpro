@@ -293,3 +293,85 @@ scoped — currently out of scope.
 All three tracker files parse with **zero exceptions**: `=DATE(2026,7,8)` →
 `2026-07-08`, `"1,000.00"` → `Decimal("1000.00")`, and `ExpiryDate` `0728`
 survives as the string `'0728'`.
+
+---
+
+# Addendum 2 — the payroll reference decoded, 2026-08-08
+
+Read from `doc/Payroll Reference - FundPro.xlsx` (8 sheets, ~900 rows with a
+computable commission multiplier). This is the file that shows what the client
+actually PRODUCES, as opposed to what they receive, and it answers — partly —
+the question that has blocked us longest.
+
+## 6.1 STOPLIGHT is a fundraiser tier, and it drives the multiplier
+
+Every payroll sheet carries a `STOPLIGHT` column we had never modelled. Its
+values are a ranking:
+
+`DIAMOND` · `GOLD` · `GREEN` · `AMBER` · `RED` (plus `N/A` / blank)
+
+Cross-tabulating it against `INCENTIVE ÷ Pledge Amount`, restricted to credit
+cards so the instrument does not confound it:
+
+| Tier | n | Dominant multiplier |
+|---|---|---|
+| DIAMOND | 119 | **×3.0 (83%)** |
+| GOLD | 161 | ×3.0 (60%) |
+| GREEN | 97 | ×2.5 (37%) |
+| AMBER | 48 | ×2.5 (35%) |
+| RED | 17 | ×1.0 (29%), and the only tier where ×0.5 appears |
+
+A clean monotonic ladder. It is **not deterministic** — something period- or
+campaign-specific still varies on top — but the tier is clearly a driver, and
+it is the best evidence we have for the commission-multiplier question.
+
+## 6.2 Card type is a second driver
+
+| Card type | n | Distribution |
+|---|---|---|
+| CREDIT CARD | 796 | ×3.0 50% · ×2.5 27% · ×1.0 11% |
+| DEBIT CARD | 103 | ×1.0 36% · ×0.5 26% · ×4.0 21% |
+
+Debit cards are priced very differently, and much lower on average.
+
+## 6.3 `UNHCR MY` looks like a separate contract
+
+All 28 `UNHCR MY` rows are **×4.0**, with no other multiplier appearing.
+`UNHCR` and `UNHCR Malaysia` behave like the ordinary book. That is evidence
+against merging `UNHCR MY` into `UNHCR` by alias, and it is worth putting to
+the client directly (open question 6).
+
+Frequency, by contrast, explains almost nothing: `Monthly` accounts for 882 of
+899 rows, so the apparent "×2.5 monthly / ×3 semi-annual" split in §3.3 is not
+supported at this sample size.
+
+## 6.4 What they actually produce each cutoff
+
+Every payroll sheet has the same 12 columns:
+
+```
+FR Name | Campaign | Donor Name | Site | Sign-up Date | Card Type |
+Frequency | Pledge Amount | Age | INCENTIVE | Serial # | STOPLIGHT
+```
+
+and `15JUL (for payslips)` adds a pivot beside it — `Row Labels` /
+`Sum of INCENTIVE` — which is one line per fundraiser with their total. That
+pivot IS the payslip.
+
+Two further shapes exist: `CEBU 7th MONTH Final` (a per-site sheet with a
+`7TH MONTH PAY` column) and `WV` (a per-charity sheet with a `REASON` column
+where the incentive would be — i.e. a failure list).
+
+**Implemented:** export `C4` reproduces the 12-column working sheet exactly,
+and `C5` reproduces the pivot with currency, bonuses and clawbacks added.
+Fundraisers now carry a tier, and commission plans can be scoped by tier and
+by instrument as well as by charity and frequency.
+
+**Not implemented:** 7th-month pay (still out of scope pending confirmation).
+
+## 6.5 A bug this found
+
+Running the live service against the real July files returned a 500 from every
+export. A blank `CARDTYPE` cell made `"".split()[0]` raise. All 334 tests
+passed at the time because every fixture set a card type. Fixed, with a
+regression test that blanks the column.
