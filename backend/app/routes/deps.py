@@ -8,9 +8,9 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, Query
 
 from app.services.analytics import DATE_BASES, PledgeFilters
-from app.store.memory import Store, get_store
+from app.store.factory import StoreLike, get_store
 
-StoreDep = Annotated[Store, Depends(get_store)]
+StoreDep = Annotated[StoreLike, Depends(get_store)]
 
 
 def today_dep(

@@ -27,7 +27,7 @@ from app.domain.models import Pledge
 from app.services import analytics
 from app.services.analytics import PledgeFilters
 from app.services.exports import Report
-from app.store.memory import Store
+from app.store.factory import StoreLike
 
 PiiLevel = Literal["none", "masked", "full"]
 
@@ -162,7 +162,7 @@ def pii_level_of(keys: list[str]) -> PiiLevel:
 
 
 def build(
-    store: Store,
+    store: StoreLike,
     filters: PledgeFilters,
     columns: list[str],
     *,

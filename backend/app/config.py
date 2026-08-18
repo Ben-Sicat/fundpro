@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     # boot at all before Postgres existed, which blocked deploying the API and
     # the database independently.
     supabase_db_url: str | None = None
+    # Which store to run on: 'auto' | 'memory' | 'postgres'.
+    #
+    # 'auto' means Postgres when supabase_db_url is set and memory otherwise,
+    # so a deployment becomes persistent as soon as the database is configured
+    # without a second variable to remember. Force 'memory' to run a throwaway
+    # demo against a configured database without writing to it.
+    store_backend: str = "auto"
     # Bearer token the Next.js server sends on every request.
     api_key: str
     log_level: str = "INFO"

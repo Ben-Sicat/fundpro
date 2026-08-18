@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from app.store.memory import FundraiserSeed, Store, get_store
+from app.store.factory import get_store
+from app.store.memory import FundraiserSeed, Store
 
 TEST_API_KEY = "test-api-key"
 

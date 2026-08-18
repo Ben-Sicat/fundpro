@@ -77,6 +77,15 @@ class Store:
     def next_id(self, prefix: str) -> str:
         return f"{prefix}_{next(self._counter):06d}"
 
+    def save_settings(self) -> None:
+        """No-op: this store's settings live in the same object already.
+
+        Exists so callers can persist unconditionally after mutating settings
+        without asking which store they hold. The Postgres implementation
+        writes them to `app_settings`, and a settings change that failed to
+        persist there would silently revert on the next restart.
+        """
+
     # -- pledges ------------------------------------------------------------
 
     def upsert_pledge(self, pledge: Pledge) -> None:

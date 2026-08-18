@@ -67,7 +67,13 @@ export type StatusClassification = (typeof STATUS_CLASSIFICATIONS)[number]
 
 export const IMPORT_SOURCE_TYPES = [
   'status_report',
-  'apps_upload',
+  // 'apps_tracker', not 'apps_upload': the backend, the API and the frontend
+  // types all name it after the file it reads (Master Apps Tracker). The CHECK
+  // constraint rejected every Apps Tracker import until these agreed —
+  // renamed here rather than in the backend because nothing had been written
+  // under the old value.
+  'apps_tracker',
+  // Reserved for the legacy backfill, which is neither of the above.
   'migration',
 ] as const
 export type ImportSourceType = (typeof IMPORT_SOURCE_TYPES)[number]

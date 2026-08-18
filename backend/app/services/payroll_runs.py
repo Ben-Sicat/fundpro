@@ -13,10 +13,10 @@ from app.domain.models import BonusLine, PayrollRunDetail
 from app.services import bonuses as bonus_service
 from app.services import payroll
 from app.services.payroll import PaidCommission, PayrollPledge
-from app.store.memory import Store
+from app.store.factory import StoreLike
 
 
-def payroll_view(store: Store) -> list[PayrollPledge]:
+def payroll_view(store: StoreLike) -> list[PayrollPledge]:
     """Every pledge, expressed as the slice payroll needs.
 
     `approved_billing_dates` comes from the event history rather than from a
@@ -60,7 +60,7 @@ def payroll_view(store: Store) -> list[PayrollPledge]:
     return out
 
 
-def derive_run(store: Store, *, as_of: date) -> PayrollRunDetail:
+def derive_run(store: StoreLike, *, as_of: date) -> PayrollRunDetail:
     pledges = payroll_view(store)
     plans = store.settings.commission_plans
     cutoff = payroll.cutoff_for(as_of)

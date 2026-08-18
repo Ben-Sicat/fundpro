@@ -34,7 +34,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PORT=8000
 EXPOSE 8000
 
-# One worker: the store is in-process, so a second worker would serve a
-# different copy of the data and uploads would appear to vanish at random.
-# This must stay 1 until Postgres is the store.
-CMD ["sh", "-c", "exec uvicorn app.asgi:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+# Worker count defaults to 1 and is raised via WEB_CONCURRENCY.
+#
+# It is safe to raise ONLY when SUPABASE_DB_URL is set. Without it the service
+# falls back to the in-process store, where a second worker serves a different
+# copy of the data and uploads appear to vanish at random. With Postgres the
+# state is shared — including settings, which live in `app_settings` precisely
+# so two workers cannot disagree about status-code classifications.
+CMD ["sh", "-c", "exec uvicorn app.asgi:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_CONCURRENCY:-1}"]

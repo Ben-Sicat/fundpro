@@ -1,0 +1,2 @@
+ALTER TABLE "import_batches" DROP CONSTRAINT "import_batches_source_type_check";--> statement-breakpoint
+ALTER TABLE "import_batches" ADD CONSTRAINT "import_batches_source_type_check" CHECK ("import_batches"."source_type" in ('status_report', 'apps_tracker', 'migration'));

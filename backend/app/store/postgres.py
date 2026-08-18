@@ -33,10 +33,12 @@ from __future__ import annotations
 
 import json
 import logging
+import types
 import uuid
+from dataclasses import fields, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from psycopg import Connection
 from psycopg.rows import dict_row
@@ -49,6 +51,7 @@ from app.domain.models import (
     ImportException,
     Pledge,
     PledgeNote,
+    StatusCode,
     Upload,
 )
 from app.domain.reference import Settings
@@ -99,7 +102,14 @@ class PostgresStore:
         if row is None:
             return Settings()
         try:
-            return Settings(**row[0])
+            loaded = _decode(Settings, row[0])
+            # Prove the nested types actually rebuilt. `Settings(**json)` looks
+            # like it works and yields lists of plain dicts, which then blow up
+            # far away in `knows_status` — so fail here, where the fallback is
+            # safe, rather than on the first import.
+            if loaded.status_codes and not isinstance(loaded.status_codes[0], StatusCode):
+                raise TypeError("status_codes did not decode into StatusCode")
+            return loaded
         except Exception:
             # A settings row written by an older build must not stop the
             # service booting; defaults are always safe.
@@ -108,7 +118,7 @@ class PostgresStore:
 
     def save_settings(self) -> None:
         """Persist the in-memory Settings object. Call after any mutation."""
-        payload = json.dumps(self.settings, default=_json_default)
+        payload = json.dumps(_encode(self.settings))
         with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO app_settings (key, value, updated_at)
@@ -1115,15 +1125,84 @@ class PostgresStore:
             ]
 
 
-def _json_default(value: Any) -> Any:
-    """Make Settings JSON-serializable: Decimal money and dates appear in it."""
+# ---------------------------------------------------------------------------
+# Settings serialization
+#
+# Settings is a tree of dataclasses (CommissionPlan, BonusRule, BonusTier) plus
+# one Pydantic model (StatusCode), holding Decimals and dates. `json.dumps`
+# with a fallback flattens it fine, but the way BACK is the trap:
+# `Settings(**payload)` accepts the dicts happily and produces a Settings whose
+# `status_codes` are plain dicts. Nothing complains until `knows_status` reads
+# `.status_id` off a dict, by which point the traceback is nowhere near the
+# cause. So the decode is type-directed rather than positional.
+# ---------------------------------------------------------------------------
+
+
+def _encode(value: Any) -> Any:
+    """Flatten a Settings tree into JSON-safe primitives."""
     if isinstance(value, Decimal):
+        # str, not float: money must not go near binary floating point.
         return str(value)
     if isinstance(value, datetime | date):
         return value.isoformat()
-    if hasattr(value, "__dict__"):
-        return vars(value)
-    raise TypeError(f"cannot serialize {type(value).__name__}")
+    if isinstance(value, dict):
+        return {k: _encode(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_encode(v) for v in value]
+    if hasattr(value, "model_dump"):  # Pydantic (StatusCode)
+        return _encode(value.model_dump())
+    if is_dataclass(value) and not isinstance(value, type):
+        return {f.name: _encode(getattr(value, f.name)) for f in fields(value)}
+    return value
+
+
+def _decode(annotation: Any, value: Any) -> Any:
+    """Rebuild a value from JSON, guided by the declared type."""
+    if value is None:
+        return None
+
+    origin = get_origin(annotation)
+
+    if origin in (Union, types.UnionType):
+        arms = [a for a in get_args(annotation) if a is not type(None)]
+        # Every optional in Settings has exactly one non-None arm.
+        return _decode(arms[0], value) if len(arms) == 1 else value
+
+    if origin in (list, tuple):
+        args = [a for a in get_args(annotation) if a is not Ellipsis]
+        inner = args[0] if args else Any
+        decoded = [_decode(inner, v) for v in value]
+        return tuple(decoded) if origin is tuple else decoded
+
+    if origin is dict:
+        args = get_args(annotation)
+        val_type = args[1] if len(args) == 2 else Any
+        return {k: _decode(val_type, v) for k, v in value.items()}
+
+    if annotation is Decimal:
+        return Decimal(str(value))
+    if annotation is date:
+        return date.fromisoformat(value) if isinstance(value, str) else value
+    if annotation is datetime:
+        return datetime.fromisoformat(value) if isinstance(value, str) else value
+
+    if hasattr(annotation, "model_validate"):  # Pydantic (StatusCode)
+        return annotation.model_validate(value)
+
+    if is_dataclass(annotation) and isinstance(value, dict):
+        # get_type_hints, not field.type: reference.py uses
+        # `from __future__ import annotations`, so field.type is a STRING and
+        # every isinstance check against it would quietly fail.
+        hints = get_type_hints(annotation)
+        return annotation(
+            **{
+                f.name: _decode(hints[f.name], value[f.name])
+                for f in fields(annotation)
+                if f.name in value
+            }
+        )
+
+    return value
 
 
 __all__ = ["SETTINGS_KEY", "PostgresStore"]

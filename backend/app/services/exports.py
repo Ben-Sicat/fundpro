@@ -28,7 +28,7 @@ from app.parsing.headers import (
 )
 from app.services import analytics
 from app.services.analytics import PledgeFilters
-from app.store.memory import Store
+from app.store.factory import StoreLike
 
 #: A1 — the 111 real columns: 113 minus the two junk ones (positions 4 and 109).
 A1_COLUMNS: tuple[str, ...] = tuple(
@@ -48,7 +48,7 @@ class Report:
         return len(self.rows)
 
 
-Builder = Callable[[Store, PledgeFilters, dict[str, Any]], Report]
+Builder = Callable[[StoreLike, PledgeFilters, dict[str, Any]], Report]
 
 
 def _age(dob: date | None, today: date) -> int | None:
@@ -64,7 +64,7 @@ def _yes_no(value: bool) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_a1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_a1(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Master Apps Tracker, legacy layout, 111 columns in the original order."""
     today: date = opts.get("today") or datetime.now(UTC).date()
     rows: list[list[Any]] = []
@@ -117,7 +117,7 @@ def build_a1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=A1_COLUMNS, rows=rows)
 
 
-def _status_row(store: Store, event: Any, pledge: Pledge | None) -> list[Any]:
+def _status_row(store: StoreLike, event: Any, pledge: Pledge | None) -> list[Any]:
     values: dict[str, Any] = {
         "Charity Code": pledge.charity_code if pledge else "",
         "Bank": pledge.processing_bank if pledge else "",
@@ -148,7 +148,7 @@ def _status_row(store: Store, event: Any, pledge: Pledge | None) -> list[Any]:
     return [values.get(header) for header in STATUS_REPORT_COLUMNS]
 
 
-def build_a2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_a2(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Master Results Tracker — the whole accumulated billing history."""
     visible = {p.serial_no for p in analytics.select(store, filters)}
     rows = [
@@ -159,7 +159,7 @@ def build_a2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=STATUS_REPORT_COLUMNS, rows=rows)
 
 
-def build_a3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_a3(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Daily Status Report snapshot — A2 scoped to one upload, plus batch id."""
     upload_id = opts.get("upload_id")
     events = (
@@ -185,7 +185,7 @@ def build_a3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
 # ---------------------------------------------------------------------------
 
 
-def build_b1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_b1(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     headers = (
         "SERIAL NO", "CHARITY", "FUNDRAISER", "SITE", "AMOUNT", "CURRENCY", "FREQUENCY",
         "SIGNUP DATE", "SUBMITTED", "DEBIT DATE", "VERIFIED DATE", "CANCELLED DATE",
@@ -206,7 +206,7 @@ def build_b1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_b2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_b2(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Retry / failed billing queue — the call list."""
     today: date = opts.get("today") or datetime.now(UTC).date()
     headers = (
@@ -238,7 +238,7 @@ def build_b2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_b3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_b3(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Verification backlog, oldest wait first."""
     today: date = opts.get("today") or datetime.now(UTC).date()
     headers = (
@@ -261,7 +261,7 @@ def build_b3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_b4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_b4(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     headers = (
         "ID", "UPLOAD", "FILE", "SERIAL NO", "PROBLEM", "DETAIL", "RAW", "RESOLVED", "CREATED",
     )
@@ -279,7 +279,7 @@ def build_b4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
 # ---------------------------------------------------------------------------
 
 
-def build_c1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_c1(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     from app.services import payroll_runs
 
     as_of: date = opts.get("today") or datetime.now(UTC).date()
@@ -299,7 +299,7 @@ def build_c1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_c2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_c2(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     from app.services import payroll_runs
 
     as_of: date = opts.get("today") or datetime.now(UTC).date()
@@ -316,7 +316,7 @@ def build_c2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_c3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_c3(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     rows_in = analytics.select(store, filters)
     multiplier = store.settings.commission_plans[0].pct_of_pledge / Decimal(100)
     headers = (
@@ -331,7 +331,7 @@ def build_c3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_c4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_c4(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """The payroll working sheet, in the client's OWN layout.
 
     Column-for-column the sheet they build by hand each cutoff (read from
@@ -381,7 +381,7 @@ def build_c4(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_c5(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_c5(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Payslip summary — the pivot they build on top of the working sheet.
 
     Their sheet ends in a `Row Labels / Sum of INCENTIVE` pivot: one line per
@@ -427,7 +427,7 @@ def build_c5(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
 # ---------------------------------------------------------------------------
 
 
-def build_d1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_d1(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Charity invoice: realized donors as charges, cancellations as credits."""
     headers = (
         "SERIAL NO", "DONOR", "CHARITY", "AMOUNT", "CURRENCY", "DEBIT DATE",
@@ -448,7 +448,7 @@ def build_d1(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_d2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_d2(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Aggregate delivery per charity. No PII — safe to send outward."""
     rows_in = analytics.select(store, filters)
     headers = (
@@ -474,7 +474,7 @@ def build_d2(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Repo
     return Report(headers=headers, rows=rows)
 
 
-def build_d3(store: Store, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
+def build_d3(store: StoreLike, filters: PledgeFilters, opts: dict[str, Any]) -> Report:
     """Management P&L: revenue against commission cost, per charity per month."""
     multiplier = store.settings.commission_plans[0].pct_of_pledge / Decimal(100)
     headers = ("MONTH", "CHARITY", "CURRENCY", "REALIZED", "REVENUE", "COMMISSION COST", "MARGIN")
@@ -562,7 +562,7 @@ TEMPLATES: tuple[TemplateSpec, ...] = (
 TEMPLATES_BY_CODE = {spec.code: spec for spec in TEMPLATES}
 
 
-def catalogue(store: Store, filters: PledgeFilters) -> list[ExportTemplate]:
+def catalogue(store: StoreLike, filters: PledgeFilters) -> list[ExportTemplate]:
     """Templates with a live row count.
 
     Counted from the collection the report is actually built on. A wrong count

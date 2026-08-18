@@ -34,7 +34,7 @@ from app.domain.models import (
     SplitSlice,
     TimePoint,
 )
-from app.store.memory import Store
+from app.store.factory import StoreLike
 
 CENTS = Decimal("0.01")
 
@@ -47,7 +47,7 @@ def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 6) if denominator else 0.0
 
 
-def realization_denominator(store: Store, rows: list[Pledge]) -> int:
+def realization_denominator(store: StoreLike, rows: list[Pledge]) -> int:
     """How many pledges the realization rate divides by.
 
     One function, used by every caller, so the headline number cannot mean
@@ -108,7 +108,7 @@ class PledgeFilters:
     force_charity: str | None = None
 
 
-def matches(store: Store, p: Pledge, f: PledgeFilters) -> bool:
+def matches(store: StoreLike, p: Pledge, f: PledgeFilters) -> bool:
     if f.force_charity and p.charity_code != f.force_charity:
         return False
 
@@ -158,7 +158,7 @@ def matches(store: Store, p: Pledge, f: PledgeFilters) -> bool:
     return True
 
 
-def select(store: Store, f: PledgeFilters) -> list[Pledge]:
+def select(store: StoreLike, f: PledgeFilters) -> list[Pledge]:
     return [p for p in store.all_pledges() if matches(store, p, f)]
 
 
@@ -167,7 +167,7 @@ def select(store: Store, f: PledgeFilters) -> list[Pledge]:
 # ---------------------------------------------------------------------------
 
 
-def kpis(store: Store, rows: list[Pledge], *, today: date) -> Kpis:
+def kpis(store: StoreLike, rows: list[Pledge], *, today: date) -> Kpis:
     realized = [p for p in rows if is_realized(p)]
     denominator = realization_denominator(store, rows)
     pledged = sum((p.amount for p in rows), Decimal(0))
@@ -291,7 +291,7 @@ def age_of(dob: date, today: date) -> int:
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
-def age_bands(store: Store, rows: list[Pledge], *, today: date) -> list[AgeBand]:
+def age_bands(store: StoreLike, rows: list[Pledge], *, today: date) -> list[AgeBand]:
     out: list[AgeBand] = []
     for label, low, high in AGE_BANDS:
         group = [
@@ -319,7 +319,7 @@ def frequency_mix(rows: list[Pledge]) -> list[LabelledCount]:
     ]
 
 
-def bank_performance(store: Store, rows: list[Pledge]) -> list[BankPerformance]:
+def bank_performance(store: StoreLike, rows: list[Pledge]) -> list[BankPerformance]:
     """Realization per bank — 'consolidate and show banks who fail'.
 
     Both roles are reported because they answer different questions: the
@@ -368,7 +368,7 @@ def bank_performance(store: Store, rows: list[Pledge]) -> list[BankPerformance]:
 
 
 def fundraiser_performance(
-    store: Store, rows: list[Pledge], *, multiplier: Decimal
+    store: StoreLike, rows: list[Pledge], *, multiplier: Decimal
 ) -> list[FundraiserPerformance]:
     groups: dict[str, list[Pledge]] = defaultdict(list)
     for p in rows:
@@ -402,7 +402,7 @@ def fundraiser_performance(
     return sorted(out, key=lambda f: -f.realized)
 
 
-def fundraiser_records(store: Store, rows: list[Pledge]) -> list[FundraiserRecord]:
+def fundraiser_records(store: StoreLike, rows: list[Pledge]) -> list[FundraiserRecord]:
     by_name: dict[str, list[Pledge]] = defaultdict(list)
     for p in rows:
         by_name[p.fundraiser_name].append(p)
@@ -432,7 +432,7 @@ def fundraiser_records(store: Store, rows: list[Pledge]) -> list[FundraiserRecor
     return sorted(out, key=lambda f: -f.realized)
 
 
-def leader_records(store: Store, rows: list[Pledge]) -> list[LeaderRecord]:
+def leader_records(store: StoreLike, rows: list[Pledge]) -> list[LeaderRecord]:
     """Leader roll-up.
 
     A fundraiser under two leaders counts toward BOTH, so these deliberately
@@ -463,7 +463,7 @@ def leader_records(store: Store, rows: list[Pledge]) -> list[LeaderRecord]:
     return sorted(out, key=lambda leader_record: -leader_record.realized)
 
 
-def site_performance(store: Store, rows: list[Pledge]) -> list[SitePerformance]:
+def site_performance(store: StoreLike, rows: list[Pledge]) -> list[SitePerformance]:
     out: list[SitePerformance] = []
     for site in store.all_sites():
         group = [p for p in rows if p.site_name == site.name]

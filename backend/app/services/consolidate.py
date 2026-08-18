@@ -31,7 +31,7 @@ from app.domain.models import (
 )
 from app.parsing.apps_tracker import AppsParseResult, AppsTrackerRecord
 from app.parsing.status_report import ParseResult, RowException, StatusReportRecord
-from app.store.memory import Store
+from app.store.factory import StoreLike
 
 
 @dataclass
@@ -39,6 +39,41 @@ class ConsolidationResult:
     upload: Upload
     impact: UploadImpact
     exceptions: list[ImportException]
+
+
+def _open_upload(
+    store: StoreLike,
+    upload_id: str,
+    filename: str,
+    source_type: str,
+    now: datetime,
+    uploaded_by: str,
+    row_count: int,
+) -> None:
+    """Record the upload BEFORE anything references it.
+
+    Billing events and import exceptions both carry the upload id as a foreign
+    key, so the batch row has to exist first. The in-memory store does not care
+    — nothing enforces references there — which is why this was only found by
+    running a real import against Postgres.
+
+    Written as `processing`; the final counts and status are restated with
+    `replace_upload` once the file is through.
+    """
+    store.add_upload(
+        Upload(
+            id=upload_id,
+            filename=filename,
+            source_type=source_type,
+            uploaded_at=now,
+            uploaded_by=uploaded_by,
+            row_count=row_count,
+            matched_count=0,
+            new_record_count=0,
+            exception_count=0,
+            status="processing",
+        )
+    )
 
 
 #: `app_status` stamped on a record assembled from a bank row. Load-bearing:
@@ -69,7 +104,7 @@ def _pan_tail(value: str | None) -> str:
 
 
 def consolidate_status_report(
-    store: Store,
+    store: StoreLike,
     parsed: ParseResult,
     *,
     filename: str,
@@ -77,6 +112,7 @@ def consolidate_status_report(
 ) -> ConsolidationResult:
     upload_id = store.next_id("upl")
     now = datetime.now(UTC)
+    _open_upload(store, upload_id, filename, "status_report", now, uploaded_by, parsed.total)
     exceptions: list[ImportException] = []
 
     def fail(
@@ -217,7 +253,7 @@ def consolidate_status_report(
         exception_count=len(exceptions),
         status="needs_review" if exceptions else "consolidated",
     )
-    store.add_upload(upload)
+    store.replace_upload(upload)
     added = [e for e in exceptions if store.add_exception(e)]
     upload = upload.model_copy(update={"exception_count": len(added)})
     store.replace_upload(upload)
@@ -239,7 +275,7 @@ def consolidate_status_report(
 
 
 def consolidate_apps_tracker(
-    store: Store,
+    store: StoreLike,
     parsed: AppsParseResult,
     *,
     filename: str,
@@ -254,6 +290,7 @@ def consolidate_apps_tracker(
     """
     upload_id = store.next_id("upl")
     now = datetime.now(UTC)
+    _open_upload(store, upload_id, filename, "apps_tracker", now, uploaded_by, parsed.total)
     exceptions: list[ImportException] = []
     created = 0
     updated = 0
@@ -313,7 +350,7 @@ def consolidate_apps_tracker(
         exception_count=len(exceptions),
         status="needs_review" if exceptions else "consolidated",
     )
-    store.add_upload(upload)
+    store.replace_upload(upload)
     added = [e for e in exceptions if store.add_exception(e)]
     upload = upload.model_copy(update={"exception_count": len(added)})
     store.replace_upload(upload)
@@ -329,7 +366,7 @@ def consolidate_apps_tracker(
     return ConsolidationResult(upload=upload, impact=impact, exceptions=exceptions)
 
 
-def _provisional_pledge(store: Store, r: StatusReportRecord) -> Pledge:
+def _provisional_pledge(store: StoreLike, r: StatusReportRecord) -> Pledge:
     """An application assembled from a BANK row.
 
     Only used when `create_missing_from_bank` is on. The bank file carries the
@@ -457,7 +494,7 @@ def merge_application(
     return incoming.model_copy(update=carried) if carried else incoming
 
 
-def _pledge_from_apps_record(store: Store, r: AppsTrackerRecord) -> Pledge:
+def _pledge_from_apps_record(store: StoreLike, r: AppsTrackerRecord) -> Pledge:
     settings = store.settings
     existing = store.get_pledge(r.serial_no)
     country = "MY" if r.country == "MY" else "PH"
@@ -511,7 +548,7 @@ def _pledge_from_apps_record(store: Store, r: AppsTrackerRecord) -> Pledge:
 # ---------------------------------------------------------------------------
 
 
-def recompute_pledge_state(store: Store, serial_no: str) -> Pledge | None:
+def recompute_pledge_state(store: StoreLike, serial_no: str) -> Pledge | None:
     """Recompute a pledge's current state from its billing history.
 
     Rules (BACKEND_PROMPT §3):
@@ -595,7 +632,7 @@ def recompute_pledge_state(store: Store, serial_no: str) -> Pledge | None:
     return updated
 
 
-def impact_of(store: Store, upload_id: str) -> UploadImpact:
+def impact_of(store: StoreLike, upload_id: str) -> UploadImpact:
     """What one upload changed, derived from the events it carried."""
     events = store.events_from_upload(upload_id)
     settings = store.settings

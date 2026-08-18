@@ -152,6 +152,7 @@ def upsert_plan(body: PlanIn, store: StoreDep, actor: ActorDep) -> dict:
     else:
         plans.append(plan)
 
+    store.save_settings()
     store.log(actor, "settings.commission_plan", f"{plan.id} · {plan.trigger_rule}")
     return commission_plans(store)[0]
 
@@ -164,6 +165,7 @@ def frequency_map(store: StoreDep) -> dict[str, str]:
 @router.put("/settings/frequency-map")
 def set_frequency_map(mapping: dict[str, str], store: StoreDep, actor: ActorDep) -> dict[str, str]:
     store.settings.frequency_map.update({k.casefold(): v for k, v in mapping.items()})
+    store.save_settings()
     store.log(actor, "settings.frequency_map", f"{len(mapping)} entries updated")
     return store.settings.frequency_map
 
@@ -178,5 +180,6 @@ def set_charity_aliases(
     mapping: dict[str, str], store: StoreDep, actor: ActorDep
 ) -> dict[str, str]:
     store.settings.charity_aliases.update({k.casefold(): v for k, v in mapping.items()})
+    store.save_settings()
     store.log(actor, "settings.charity_aliases", f"{len(mapping)} entries updated")
     return store.settings.charity_aliases

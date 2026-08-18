@@ -136,6 +136,7 @@ def upsert_bonus_rule(body: BonusRuleIn, store: StoreDep, actor: ActorDep) -> di
     else:
         rules.append(rule)
 
+    store.save_settings()
     store.log(actor, "settings.bonus_rule", f"{rule.id} · {rule.basis} · {len(rule.tiers)} tiers")
     return _rule_out(rule)
 
@@ -146,6 +147,7 @@ def delete_bonus_rule(rule_id: str, store: StoreDep, actor: ActorDep) -> dict:
     store.settings.bonus_rules = [r for r in store.settings.bonus_rules if r.id != rule_id]
     if len(store.settings.bonus_rules) == before:
         raise HTTPException(404, "No such bonus rule")
+    store.save_settings()
     store.log(actor, "settings.bonus_rule.delete", rule_id)
     return {"deleted": rule_id}
 
@@ -201,6 +203,7 @@ def set_rules(body: RulesIn, store: StoreDep, actor: ActorDep) -> dict:
             changed.append(f"{field_name}={value}")
 
     if changed:
+        store.save_settings()
         store.log(actor, "settings.rules", ", ".join(changed))
     return get_rules(store)
 
@@ -215,6 +218,7 @@ def set_location_aliases(
     mapping: dict[str, str], store: StoreDep, actor: ActorDep
 ) -> dict[str, str]:
     store.settings.location_aliases.update({k.strip().casefold(): v for k, v in mapping.items()})
+    store.save_settings()
     store.log(actor, "settings.location_aliases", f"{len(mapping)} entries updated")
     return store.settings.location_aliases
 
