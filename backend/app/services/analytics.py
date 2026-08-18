@@ -374,6 +374,10 @@ def fundraiser_performance(
     for p in rows:
         groups[p.fundraiser_name].append(p)
 
+    # One query for every fundraiser's leaders, not one per group. Against
+    # Postgres the per-name form was a network round trip inside the loop.
+    leaders = store.leaders_by_fundraiser()
+
     out: list[FundraiserPerformance] = []
     for name, group in groups.items():
         realized = [p for p in group if is_realized(p)]
@@ -381,7 +385,7 @@ def fundraiser_performance(
         out.append(
             FundraiserPerformance(
                 name=name,
-                leader_name=(store.leaders_of(name) or [""])[0],
+                leader_name=(leaders.get(name) or [""])[0],
                 signups=len(group),
                 realized=len(realized),
                 realization_rate=_rate(len(realized), realization_denominator(store, group)),

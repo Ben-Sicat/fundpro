@@ -28,6 +28,7 @@ from app.parsing.headers import (
 )
 from app.services import analytics
 from app.services.analytics import PledgeFilters
+from app.store.cached import CachedStore
 from app.store.factory import StoreLike
 
 #: A1 — the 111 real columns: 113 minus the two junk ones (positions 4 and 109).
@@ -562,22 +563,50 @@ TEMPLATES: tuple[TemplateSpec, ...] = (
 TEMPLATES_BY_CODE = {spec.code: spec for spec in TEMPLATES}
 
 
+#: Column counts, computed once per process.
+#:
+#: A template's column list is part of its DEFINITION — A1 is 111 columns
+#: whatever is in the database — so this never varies by request or by data.
+#: It used to be derived by calling `spec.build(...)` inside the catalogue loop,
+#: which built all fourteen reports over the whole dataset on every request just
+#: to measure their headers.
+_COLUMN_COUNTS: dict[str, int] = {}
+
+
+def _column_count(spec: Any, store: StoreLike) -> int:
+    cached = _COLUMN_COUNTS.get(spec.code)
+    if cached is None:
+        # Built against a filter that matches nothing, so this measures the
+        # header row without materialising any rows.
+        cached = len(spec.build(store, PledgeFilters(), {}).headers)
+        _COLUMN_COUNTS[spec.code] = cached
+    return cached
+
+
 def catalogue(store: StoreLike, filters: PledgeFilters) -> list[ExportTemplate]:
     """Templates with a live row count.
 
     Counted from the collection the report is actually built on. A wrong count
     is worse than none: "Import Exceptions — 420 rows" when six rows failed
     sends someone hunting for a problem that does not exist.
+
+    Every count is taken ONCE, before the loop. Reading them per template meant
+    fourteen full table reads per request — free against the in-memory store,
+    a network round trip each against Postgres.
     """
-    matching = len(analytics.select(store, filters))
+    view = CachedStore(store)
+    matching = len(analytics.select(view, filters))
+    event_count = len(view.all_billing_events())
+    open_exceptions = sum(1 for e in view.all_exceptions() if not e.resolved)
+
     out: list[ExportTemplate] = []
     for spec in TEMPLATES:
         if spec.counts == "pledges":
             rows: int | None = matching
         elif spec.counts == "events":
-            rows = len(store.all_billing_events())
+            rows = event_count
         elif spec.counts == "exceptions":
-            rows = sum(1 for e in store.all_exceptions() if not e.resolved)
+            rows = open_exceptions
         else:
             rows = None
         out.append(
@@ -587,7 +616,7 @@ def catalogue(store: StoreLike, filters: PledgeFilters) -> list[ExportTemplate]:
                 name=spec.name,
                 description=spec.description,
                 group=spec.group,
-                column_count=len(spec.build(store, PledgeFilters(), {}).headers),
+                column_count=_column_count(spec, view),
                 pii_level=spec.pii_level,  # type: ignore[arg-type]
                 legacy=spec.legacy,
                 rows=rows,

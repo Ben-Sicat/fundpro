@@ -272,6 +272,16 @@ class Store:
     def find_fundraiser(self, code: str) -> FundraiserSeed | None:
         return next((f for f in self.fundraisers if f.code == code), None)
 
+    def leaders_by_fundraiser(self) -> dict[str, list[str]]:
+        """Every fundraiser's leaders, in one go.
+
+        `leaders_of` per name is one query against Postgres, and both the
+        performance roll-up and the import loop call it once per row — 2,800
+        round trips on a real import. Callers iterating over many names should
+        take the map instead.
+        """
+        return {f.name: list(f.leader_names) for f in self.fundraisers}
+
     def leaders_of(self, name: str) -> list[str]:
         found = next((f for f in self.fundraisers if f.name == name), None)
         return list(found.leader_names) if found else []

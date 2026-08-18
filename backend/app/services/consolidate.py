@@ -310,13 +310,16 @@ def consolidate_apps_tracker(
             )
         )
 
+    # Prefetched once per file rather than per row; see _pledge_from_apps_record.
+    leaders = store.leaders_by_fundraiser()
+
     for record in parsed.records:
         existing = store.get_pledge(record.serial_no)
         existed = existing is not None
         store.upsert_pledge(
             merge_application(
                 existing,
-                _pledge_from_apps_record(store, record),
+                _pledge_from_apps_record(store, record, leaders),
                 prefer_existing=prefer_existing,
             )
         )
@@ -494,7 +497,17 @@ def merge_application(
     return incoming.model_copy(update=carried) if carried else incoming
 
 
-def _pledge_from_apps_record(store: StoreLike, r: AppsTrackerRecord) -> Pledge:
+def _pledge_from_apps_record(
+    store: StoreLike,
+    r: AppsTrackerRecord,
+    leaders: dict[str, list[str]] | None = None,
+) -> Pledge:
+    """Build a Pledge from one tracker row.
+
+    `leaders` is the fundraiser→leaders map, prefetched once by the caller.
+    Looking it up per row was a database round trip per pledge — on a 2,800-row
+    import that alone was thousands of sequential queries.
+    """
     settings = store.settings
     existing = store.get_pledge(r.serial_no)
     country = "MY" if r.country == "MY" else "PH"
@@ -514,7 +527,7 @@ def _pledge_from_apps_record(store: StoreLike, r: AppsTrackerRecord) -> Pledge:
         location_name=r.location_code or r.event_code,
         agent_id=r.agent_id,
         fundraiser_name=r.fundraiser_name,
-        leader_name=(store.leaders_of(r.fundraiser_name) or [""])[0],
+        leader_name=((leaders or {}).get(r.fundraiser_name) or [""])[0],
         amount=r.amount if r.amount is not None else Decimal(0),
         # Currency follows the country of acquisition. OPEN with the client
         # (FINDINGS §3.2) — kept per-pledge rather than assumed globally.

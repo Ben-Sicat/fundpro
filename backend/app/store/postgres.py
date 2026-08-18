@@ -1105,6 +1105,21 @@ class PostgresStore:
                 )
             conn.commit()
 
+    def leaders_by_fundraiser(self) -> dict[str, list[str]]:
+        """Every fundraiser's leaders in ONE query. See memory.Store."""
+        with self.pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """SELECT f.full_name, l.full_name
+                     FROM fundraisers f
+                     JOIN fundraiser_leaders fl ON fl.fundraiser_id = f.id
+                     JOIN leaders l ON l.id = fl.leader_id
+                    ORDER BY f.full_name, l.full_name"""
+            )
+            out: dict[str, list[str]] = {}
+            for fundraiser, leader in cur.fetchall():
+                out.setdefault(fundraiser, []).append(leader)
+            return out
+
     def leaders_of(self, name: str) -> list[str]:
         with self.pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
