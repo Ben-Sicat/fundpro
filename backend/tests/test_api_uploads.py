@@ -93,14 +93,16 @@ def test_apps_tracker_re_upload_updates_rather_than_duplicates(
 
 def test_every_exception_path_is_exercised(loaded: ApiClient) -> None:
     problems = {e["problem"] for e in loaded.json("/exceptions")}
-    assert "no_matching_pledge" in problems  # serial not in the master
     assert "unknown_status_id" in problems  # code 77 is not in the dictionary
     assert "name_mismatch" in problems  # right serial, wrong donor
+    # `no_matching_pledge` is no longer one of these under the default — an
+    # unrecognised serial now becomes a provisional application. See
+    # test_an_unknown_serial_* below for both halves of that behaviour.
 
 
 def test_a_bad_row_does_not_stop_the_good_ones(loaded: ApiClient) -> None:
-    # Three rows are rejected; the other seven still consolidated.
-    assert len(loaded.json("/exceptions")) == 3
+    # Two rows are rejected; the rest still consolidated.
+    assert len(loaded.json("/exceptions")) == 2
     assert loaded.json("/pledges/FES48000001")["currentStatusId"] == 66
 
 
@@ -228,6 +230,11 @@ def test_re_uploading_does_not_duplicate_the_review_queue(
     Billing events already deduped; the review queue did not. Left alone, the
     count grows every morning and stops meaning anything.
     """
+    # This guards the REVIEW QUEUE, which only fills with unmatched rows when
+    # provisional creation is off — with it on they become applications
+    # instead. Pin the rule so the test exercises what it describes.
+    api.put("/settings/rules", json={"createMissingFromBank": False})
+
     # No applications loaded, so every bank row is an unmatched exception.
     status = build_status_workbook(tmp_path / "s.xlsx")
 
@@ -284,3 +291,75 @@ def test_fixing_the_cause_clears_the_review_item(api: ApiClient, tmp_path: Path)
     ]
     assert still_open == [], "the review item should close once the row consolidates"
     assert 77 in [e["statusId"] for e in api.json(f"/pledges/{serial}/events")]
+
+
+# ---------------------------------------------------------------------------
+# A serial the applications master has never seen
+# ---------------------------------------------------------------------------
+
+
+def test_an_unknown_serial_becomes_a_provisional_application(
+    api: ApiClient, tmp_path: Path
+) -> None:
+    """The bank's file is the only place this billing outcome will ever exist.
+
+    Status Reports routinely carry serials the Apps Tracker has not caught up
+    with. Setting those rows aside loses billing history the bank does not
+    resend, so the default is to build an application from the bank's own
+    columns and mark it provisional.
+    """
+    from tests.fixtures.workbooks import build_status_with_unknown_serial
+
+    upload(api, build_status_with_unknown_serial(tmp_path / "unknown.xlsx"))
+
+    pledge = api.json("/pledges/FES49999999")
+    assert pledge["donorName"] == "Nobody Here"
+    # Flagged, so nobody mistakes it for a complete application.
+    assert "PROVISIONAL" in pledge["appStatus"]
+    # And the billing event it came for is on the record.
+    assert len(api.json("/pledges/FES49999999/events")) == 1
+
+
+def test_an_unknown_serial_can_still_be_set_aside_instead(
+    api: ApiClient, tmp_path: Path
+) -> None:
+    """Turning the rule off restores the review-queue behaviour.
+
+    Provisional records carry no site and no real fundraiser name, so an
+    operation that would rather chase the missing tracker than accept partial
+    applications can have that.
+    """
+    from tests.fixtures.workbooks import build_status_with_unknown_serial
+
+    api.put("/settings/rules", json={"createMissingFromBank": False})
+    upload(api, build_status_with_unknown_serial(tmp_path / "unknown.xlsx"))
+
+    problems = {e["problem"] for e in api.json("/exceptions")}
+    assert problems == {"no_matching_pledge"}
+    assert api.get("/pledges/FES49999999").status_code == 404
+
+
+def test_the_real_tracker_supersedes_a_provisional_record(
+    api: ApiClient, tmp_path: Path
+) -> None:
+    """A provisional application is a placeholder, not a competing record.
+
+    When the Apps Tracker finally arrives it must overwrite the bank-derived
+    stand-in with the full record — email, site, fundraiser — rather than
+    leaving two versions or refusing the import.
+    """
+    from tests.fixtures.workbooks import build_apps_workbook, build_status_subset
+
+    # Bank file first: FES48000001 arrives with no application behind it.
+    upload(api, build_status_subset(tmp_path / "early.xlsx", ("FES48000001",)))
+    assert "PROVISIONAL" in api.json("/pledges/FES48000001")["appStatus"]
+
+    # The tracker catches up.
+    upload(api, build_apps_workbook(tmp_path / "apps.xlsx"))
+
+    full = api.json("/pledges/FES48000001")
+    assert "PROVISIONAL" not in full["appStatus"]
+    assert full["donorEmail"]
+    assert full["siteName"]
+    # The billing history the bank file carried survives the overwrite.
+    assert len(api.json("/pledges/FES48000001/events")) >= 1

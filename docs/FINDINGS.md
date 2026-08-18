@@ -375,3 +375,32 @@ Running the live service against the real July files returned a 500 from every
 export. A blank `CARDTYPE` cell made `"".split()[0]` raise. All 334 tests
 passed at the time because every fixture set a card type. Fixed, with a
 regression test that blanks the column.
+
+
+---
+
+# Addendum — unmatched bank serials (2026-08-18)
+
+**MASTER_SPEC §4.1 says:** "Unknown serial → 'no_matching_pledge'."
+
+**What the platform now does:** builds a provisional application from the bank
+row instead, and marks it `PROVISIONAL (from bank file)`.
+
+**Why.** The spec was written before the operation was running. In practice a
+Status Report regularly carries serials the Apps Tracker has not caught up
+with — the August file was 121 rows, none of which matched. That bank row is
+the only place the billing outcome will ever exist; the bank does not resend
+it. Setting the row aside to protect a tidy master loses real data.
+
+The provisional record carries the donor name, amount, frequency, card,
+charity and agent code the bank file supplies. It has no email, site or
+fundraiser name, so it is visibly partial, and importing the real Apps Tracker
+overwrites it with the full record (covered by
+`test_the_real_tracker_supersedes_a_provisional_record`).
+
+**Reversible in one setting.** Settings → `createMissingFromBank` = false
+restores the documented behaviour exactly, and the review-queue path is still
+tested (`test_an_unknown_serial_can_still_be_set_aside_instead`).
+
+**Confirm with the client**, since it changes what "no matching application"
+means in their reporting.

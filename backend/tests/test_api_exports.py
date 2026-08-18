@@ -174,7 +174,7 @@ def test_the_catalogue_reports_live_row_counts(loaded: ApiClient) -> None:
     templates = {t["code"]: t for t in loaded.json("/exports/templates")}
     assert templates["A1"]["rows"] == 6  # one per application
     assert templates["A2"]["rows"] == 7  # one per billing event
-    assert templates["B4"]["rows"] == 3  # open exceptions
+    assert templates["B4"]["rows"] == 2  # open exceptions
 
 
 def test_counts_come_from_the_right_collection(loaded: ApiClient) -> None:

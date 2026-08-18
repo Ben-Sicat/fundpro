@@ -245,18 +245,28 @@ class Settings:
     #: When a bank row has no matching application, create a provisional one
     #: from the bank's own columns instead of setting the row aside.
     #:
-    #: OFF by default and deliberately so. An application built from a bank
-    #: file has no email, no date of birth, no site and no fundraiser name, so
-    #: it cannot be attributed to anyone or paid on — but it DOES enter the
-    #: realization denominator, which silently drags down every fundraiser and
-    #: site figure with sign-ups nobody made. Turning this on was measured to
-    #: move the headline rates on the sample data.
+    #: DIVERGES FROM MASTER_SPEC §4.1, which says "Unknown serial →
+    #: 'no_matching_pledge'". Changed on the owner's instruction 2026-08-18:
+    #: the spec was written before the operation was running, and in practice
+    #: the bank file frequently arrives ahead of the tracker. Setting this to
+    #: False restores the documented behaviour exactly.
     #:
-    #: The right answer to "121 rows set aside" is almost always to import the
-    #: Apps Tracker for that period. This switch is for the case where that
-    #: tracker genuinely is not coming and the billing history matters more
-    #: than the attribution.
-    create_missing_from_bank: bool = False
+    #: ON by default. A Status Report routinely carries serials the Apps
+    #: Tracker has not caught up with, and that row is the only place the
+    #: billing outcome will ever exist — the bank does not resend it. Setting
+    #: it aside loses real data to protect a tidy master, which is the wrong
+    #: trade.
+    #:
+    #: The record is built from the bank's own columns (donor name, amount,
+    #: frequency, card, charity, agent code) and marked
+    #: "PROVISIONAL (from bank file)". It carries no email, site or fundraiser
+    #: name, so it is visibly partial, and importing the real Apps Tracker
+    #: overwrites it with the full record.
+    #:
+    #: Turn it OFF to send unrecognised serials to the review queue instead —
+    #: for an operation that would rather chase the missing tracker than hold
+    #: partial applications.
+    create_missing_from_bank: bool = True
 
     #: Used only where a single cross-currency total is unavoidable. None means
     #: refuse to combine, which is the current behaviour everywhere.

@@ -1,0 +1,24 @@
+# Render blueprint for the processing service.
+#
+# Render rather than Vercel: this is a long-running FastAPI app that streams
+# multi-megabyte workbooks through openpyxl, and it keeps an in-process store
+# between requests. Neither fits a serverless function.
+services:
+  - type: web
+    name: fundpro-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      # The bearer token the Next.js server sends. Generate once, then set the
+      # SAME value as PREPROCESS_API_KEY in Vercel.
+      - key: API_KEY
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO
+      # Left unset on purpose until Postgres exists — the service runs on its
+      # in-process store and /health reports "not configured" rather than
+      # failing. Add SUPABASE_DB_URL here when the database is provisioned.

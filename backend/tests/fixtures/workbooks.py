@@ -300,8 +300,10 @@ STATUS_ROWS: tuple[dict[str, Any], ...] = (
         },
     ),
     # --- rows that must become exceptions, not silent drops -----------------
-    # A serial that is not in the applications master.
-    _status("FES49999999", **{"CUSTOMERS NAME": "Nobody Here"}),
+    # NOTE: the "serial not in the master" row lives in
+    # build_status_with_unknown_serial() rather than here. Under the production
+    # default it becomes a provisional pledge rather than an exception, and
+    # leaving it in the shared corpus shifted every count in the suite.
     # A status code the dictionary does not know.
     _status(
         "FES48000001",
@@ -327,6 +329,28 @@ def build_status_workbook(path: Path, *, sheet_name: str = "sheet1") -> Path:
     ws.append(list(STATUS_REPORT_COLUMNS))
     for record in STATUS_ROWS:
         ws.append(_row(STATUS_REPORT_COLUMNS, record))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path)
+    return path
+
+
+def build_status_with_unknown_serial(path: Path) -> Path:
+    """One bank row whose serial the applications master has never seen.
+
+    Two behaviours hang off this, chosen by `create_missing_from_bank`:
+    ON (the default) creates a provisional application from the bank's own
+    columns; OFF sets the row aside as `no_matching_pledge`.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "sheet1"
+    ws.append(list(STATUS_REPORT_COLUMNS))
+    ws.append(
+        _row(
+            STATUS_REPORT_COLUMNS,
+            _status("FES49999999", **{"CUSTOMERS NAME": "Nobody Here"}),
+        )
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
     return path

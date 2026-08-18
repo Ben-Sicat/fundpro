@@ -11,7 +11,13 @@ class Settings(BaseSettings):
 
     # Supabase session-pooler URL (port 5432, sslmode=require). Long import
     # transactions do not belong on the transaction pooler.
-    supabase_db_url: str
+    #
+    # OPTIONAL. Consolidation currently runs against an in-process store, so
+    # the service is fully functional without a database and this is only used
+    # by the health check. Making it required meant the container could not
+    # boot at all before Postgres existed, which blocked deploying the API and
+    # the database independently.
+    supabase_db_url: str | None = None
     # Bearer token the Next.js server sends on every request.
     api_key: str
     log_level: str = "INFO"
