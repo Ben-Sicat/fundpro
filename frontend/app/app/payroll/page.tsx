@@ -74,7 +74,6 @@ export default async function PayrollPage() {
           subtitle={`${derived.cutoff.label} · pays ${date(derived.cutoff.runDate)}`}
           action={
             <span className="flex gap-2">
-              <Button size="sm" disabled title="Coming soon">Review lines</Button>
               <Button size="sm" variant="primary">
                 Approve &amp; lock
               </Button>
@@ -143,6 +142,61 @@ export default async function PayrollPage() {
             </tbody>
           </Table>
         </div>
+
+        {/* The table above is per fundraiser. "Review lines" means the
+            per-donor detail behind those totals — which donor, which charity,
+            which rule made the line eligible — because that is what someone
+            checks before approving a run.
+
+            A native <details> rather than a button plus state: this page is a
+            Server Component, the data is already here, and a disclosure needs
+            no JavaScript to be correct. */}
+        {derived.lines.length > 0 ? (
+          <details className="group mt-4">
+            <summary className="rounded-[var(--r-sm)] inline-flex min-h-9 cursor-pointer items-center gap-2 border border-line-strong bg-surface-2 px-3 text-xs text-secondary transition-colors hover:bg-surface-3 hover:text-primary">
+              <span aria-hidden className="transition-transform group-open:rotate-90">
+                ▶
+              </span>
+              Review lines
+              <span className="tabular text-muted">({count(derived.lines.length)})</span>
+            </summary>
+
+            <div className="mt-3">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Serial</Th>
+                    <Th>Fundraiser</Th>
+                    <Th>Client</Th>
+                    <Th align="right">Pledge</Th>
+                    <Th align="right">Commission</Th>
+                    <Th>Eligible</Th>
+                    <Th>Rule</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {derived.lines.map((l) => (
+                    <Tr key={`${l.serialNo}-${l.planId}`}>
+                      <Td className="tabular">{l.serialNo}</Td>
+                      <Td className="text-primary">{l.fundraiserName || '—'}</Td>
+                      <Td>
+                        <Badge tone="neutral">{l.charityCode}</Badge>
+                      </Td>
+                      <Td align="right" className="tabular">
+                        {money(l.pledgeAmount, l.currency)}
+                      </Td>
+                      <Td align="right" className="tabular font-semibold text-primary">
+                        {money(l.commission, l.currency)}
+                      </Td>
+                      <Td className="tabular">{date(l.eligibilityDate)}</Td>
+                      <Td className="text-muted">{l.conditionApplied.replace(/_/g, ' ')}</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </details>
+        ) : null}
       </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

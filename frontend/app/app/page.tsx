@@ -1,29 +1,24 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Badge, Button, Card, CardHeader, SectionTitle, Table, Td, Th, Tr } from '@/components/ui'
+import { Suspense } from 'react'
+import { Button, Card, CardHeader } from '@/components/ui'
 import { StatTile } from '@/components/charts/stat-tile'
 import { AreaChart } from '@/components/charts/area-chart'
-import { BarList } from '@/components/charts/bar-list'
 import { Donut } from '@/components/charts/donut'
-import { ColumnChart } from '@/components/charts/column-chart'
+import { ChartSkeleton, ListSkeleton, TableSkeleton } from '@/components/charts/skeleton'
+import { ActivitySection, MixSection, PerformanceSection } from './sections'
 import { FilterBar } from '@/components/filter-bar'
 import { filtersFromParams } from '@/lib/filters'
 import {
-  getAgeBands,
   getCharities,
   getFundraiserNames,
-  getLeaderNames,
-  getSiteNames,
-  getFrequencyMix,
-  getFundraiserPerformance,
-  getInstrumentSplit,
   getKpis,
+  getLeaderNames,
   getResultsSplit,
-  getSitePerformance,
+  getSiteNames,
   getTimeSeries,
-  getUploads,
 } from '@/lib/data'
-import { count, date, dateShort, moneyCompact, percent } from '@/lib/format'
+import { count, moneyCompact, percent } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'Overview · FundPro' }
 
@@ -52,27 +47,20 @@ export default async function OverviewPage({
   // the same slice of data.
   const f = filtersFromParams(sp)
 
-  const [
-    kpis, series, split, leaderboard, sites, instruments, ageBands, freq, uploads,
-    charities, fundraiserNames, leaderNames, siteNames,
-  ] = await Promise.all([
-    getKpis(f),
-    getTimeSeries(f),
-    getResultsSplit(f),
-    getFundraiserPerformance(f),
-    getSitePerformance(f),
-    getInstrumentSplit(f),
-    getAgeBands(f),
-    getFrequencyMix(f),
-    getUploads(),
-    getCharities(),
-    getFundraiserNames(),
-    getLeaderNames(),
-    getSiteNames(),
-  ])
+  // Only what the first screenful needs. Everything below streams in behind a
+  // Suspense boundary, so one slow endpoint no longer holds up the whole page.
+  const [kpis, series, split, charities, fundraiserNames, leaderNames, siteNames] =
+    await Promise.all([
+      getKpis(f),
+      getTimeSeries(f),
+      getResultsSplit(f),
+      getCharities(),
+      getFundraiserNames(),
+      getLeaderNames(),
+      getSiteNames(),
+    ])
 
   const submitted = split.reduce((s, d) => s + d.value, 0)
-  const recentUploads = uploads.slice(0, 4)
 
   return (
     <div className="space-y-8">
@@ -188,168 +176,36 @@ export default async function OverviewPage({
         </Card>
       </div>
 
-      {/* ---- Performance ---- */}
-      <div>
-        <SectionTitle hint="who is bringing in donors that stick">
-          Performance
-        </SectionTitle>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card>
-            <CardHeader
-              title="Top fundraisers"
-              subtitle="By donors who actually started paying"
-            />
-            <BarList
-              data={leaderboard.slice(0, 8).map((f) => ({
-                label: f.name,
-                sublabel: f.leaderName,
-                value: f.realized,
-                note: percent(f.realizationRate, 0),
-              }))}
-              format="count"
-            />
-          </Card>
-
-          <Card>
-            <CardHeader
-              title="Sites"
-              subtitle="Where, when, and how many people worked it"
-            />
-            <BarList
-              data={sites.map((s) => ({
-                label: s.name,
-                // Who and when, not just where.
-                sublabel: `${s.charityCode} · ${s.staffCount} staff · from ${dateShort(s.startsOn)}${
-                  s.endsOn ? ` to ${dateShort(s.endsOn)}` : ' (running)'
-                }`,
-                value: s.signups,
-                note: percent(s.realizationRate, 0),
-                tone: 'series-3',
-              }))}
-              format="count"
-            />
-          </Card>
-        </div>
-      </div>
-
-      {/* ---- Donor mix ---- */}
-      <div>
-        <SectionTitle>Donor &amp; payment mix</SectionTitle>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card>
-            <CardHeader
-              title="Age bands"
-              subtitle="Which age groups give, and how many stick"
-            />
-            <ColumnChart
-              data={ageBands.map((b) => ({
-                label: b.band,
-                value: b.count,
-                rate: b.realizationRate,
-                highlight: b.band === '25–30',
-              }))}
-            />
-          </Card>
-
-          <Card>
-            <CardHeader
-              title="Instrument"
-              subtitle="Credit vs debit, and how often each goes through"
-            />
-            <ColumnChart
-              data={instruments.map((d) => ({
-                label: d.label,
-                value: d.count,
-                rate: d.approvalRate,
-              }))}
-            />
-          </Card>
-
-          <Card>
-            <CardHeader title="Frequency mix" subtitle="How often donors give" />
-            <BarList
-              data={freq.map((f) => ({
-                label: f.label,
-                value: f.value,
-                tone: 'series-3',
-              }))}
-              format="count"
-            />
-            <p className="mt-4 rounded-lg bg-warning-soft px-3 py-2 text-[11px] leading-relaxed text-warning-text">
-              <strong>⚠ One thing to confirm.</strong> The spreadsheets write
-              giving frequency two different ways, so these totals need a quick
-              check with the team before anyone relies on them.
-            </p>
-          </Card>
-        </div>
-      </div>
-
-      {/* ---- Recent consolidation activity ---- */}
-      <div>
-        <SectionTitle hint="every file the bank sends us">
-          Recent uploads
-        </SectionTitle>
-        <Card>
-          <Table>
-            <thead>
-              <tr>
-                <Th>File</Th>
-                <Th>Uploaded</Th>
-                <Th align="right">Rows</Th>
-                <Th align="right">Matched</Th>
-                <Th align="right">Exceptions</Th>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentUploads.map((u) => (
-                <Tr key={u.id}>
-                  <Td className="font-medium text-primary">
-                    <span className="flex items-center gap-2">
-                      <span className="text-muted" aria-hidden>
-                        {u.sourceType === 'status_report' ? '▤' : '▦'}
-                      </span>
-                      {u.filename}
-                    </span>
-                  </Td>
-                  <Td>{date(u.uploadedAt)}</Td>
-                  <Td align="right" className="tabular">
-                    {count(u.rowCount)}
-                  </Td>
-                  <Td align="right" className="tabular">
-                    {count(u.matchedCount)}
-                  </Td>
-                  <Td align="right" className="tabular">
-                    {u.exceptionCount > 0 ? (
-                      <span className="font-medium text-critical-text">
-                        {u.exceptionCount}
-                      </span>
-                    ) : (
-                      <span className="text-muted">0</span>
-                    )}
-                  </Td>
-                  <Td>
-                    {u.status === 'consolidated' ? (
-                      <Badge tone="good" dot>
-                        Consolidated
-                      </Badge>
-                    ) : (
-                      <Badge tone="warning" dot>
-                        Needs review
-                      </Badge>
-                    )}
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-          <div className="mt-4">
-            <Link href="/app/uploads">
-              <Button size="sm">View all uploads →</Button>
-            </Link>
+      {/* Each section fetches its own data and streams into a skeleton of the
+          same height. Matching heights matter: a fallback shorter than its
+          content shifts the page when it resolves and loses your scroll
+          position mid-read. */}
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <ListSkeleton rows={8} title="Top fundraisers" />
+            <ListSkeleton rows={8} title="Sites" />
           </div>
-        </Card>
-      </div>
+        }
+      >
+        <PerformanceSection filters={f} />
+      </Suspense>
+
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <ChartSkeleton height={180} title="Age bands" />
+            <ChartSkeleton height={180} title="Instrument" />
+            <ListSkeleton rows={3} title="Frequency mix" />
+          </div>
+        }
+      >
+        <MixSection filters={f} />
+      </Suspense>
+
+      <Suspense fallback={<TableSkeleton rows={4} cols={6} />}>
+        <ActivitySection />
+      </Suspense>
     </div>
   )
 }

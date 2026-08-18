@@ -11,15 +11,16 @@ const nextConfig: NextConfig = {
      * total, Applications shows another, and neither says which is stale.
      *
      * `dynamic: 0` makes every navigation re-render on the server.
-     * `static: 0` covers the login and marketing routes for the same reason —
-     * they are cheap, and a stale one is confusing rather than fast.
      *
-     * The cost is a server render per navigation. That is the correct trade
-     * for an operations console whose whole job is to show what is true now.
+     * `static` is deliberately left at its default. Setting it to 0 as well
+     * meant every auto-refresh invalidated the prefetches behind all thirteen
+     * nav links, so the router re-fetched the lot — bursts of eight-plus
+     * renders a second showed up in the logs. Nav links now opt out of
+     * prefetching instead (see components/shell/sidebar.tsx), which gets the
+     * freshness without the churn.
      */
     staleTimes: {
       dynamic: 0,
-      static: 0,
     },
   },
 }

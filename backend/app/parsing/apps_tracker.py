@@ -180,7 +180,15 @@ def _parse_row(row: RawRow) -> AppsTrackerRecord:
         event_code=value("EVENT CODE", parse_text) or "",
         location_code=value("LOCATION CODE", parse_text) or "",
         agent_id=value("AGENT ID", parse_text) or "",
-        fundraiser_name=value("Fundraiser Name", parse_text) or "",
+        # `Fundraiser Name` is the Master Apps Tracker's column. The daily
+        # Submissions files carry the same person under `AGENT NAME` and have no
+        # `Fundraiser Name` at all, so reading only the first name left every
+        # pledge in the April–July 2026 archive unattributed — 0 fundraisers on
+        # the Team page and empty per-fundraiser payroll, from 2,500 sign-ups
+        # that all name their recruiter.
+        fundraiser_name=(
+            value("Fundraiser Name", parse_text) or value("AGENT NAME", parse_text) or ""
+        ),
         # The junk column at position 4 carries this; fall back to the named one.
         recruiter_code=(
             parse_text(row.cells[3] if len(row.cells) > 3 else None)

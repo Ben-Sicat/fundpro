@@ -56,6 +56,7 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
             return (
               <li key={item.href} className="min-w-0 flex-1">
                 <Link
+                  prefetch={false}
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
                   className={cx(
@@ -125,6 +126,7 @@ export function MobileNav({ groups }: { groups: NavGroup[] }) {
                 return (
                   <li key={item.href}>
                     <Link
+                      prefetch={false}
                       href={item.href}
                       className={cx(
                         'rounded-[var(--r-sm)] flex min-h-12 items-center gap-2.5 px-3 py-2 text-sm',

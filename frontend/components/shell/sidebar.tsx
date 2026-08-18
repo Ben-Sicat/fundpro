@@ -43,6 +43,7 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
               return (
                 <li key={item.href}>
                   <Link
+                    prefetch={false}
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cx(
