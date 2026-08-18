@@ -122,7 +122,23 @@ class PostgresStore:
             max_size=max_size if max_size is not None else _pool_max(),
             open=True,
             timeout=10,
-            kwargs={"autocommit": False},
+            kwargs={
+                "autocommit": False,
+                # Required for Supabase's TRANSACTION pooler (port 6543), which
+                # is what a serverless deployment must use: its session pooler
+                # allows only 15 clients total, and one page load fanning out
+                # across lambdas exhausts that instantly
+                # (FATAL: EMAXCONNSESSION).
+                #
+                # In transaction mode a server connection is handed to a
+                # different client after each transaction, so psycopg's
+                # server-side prepared statements — which it starts using after
+                # the 5th execution of a statement — would be looked up on a
+                # connection that never prepared them. None disables them.
+                # Harmless on the session pooler, so it is set unconditionally
+                # rather than sniffed from the port.
+                "prepare_threshold": None,
+            },
         )
         self.settings = self._load_settings()
 

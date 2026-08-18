@@ -9,8 +9,17 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Supabase session-pooler URL (port 5432, sslmode=require). Long import
-    # transactions do not belong on the transaction pooler.
+    # Supabase pooler URL. WHICH pooler depends on where this runs:
+    #
+    #   Serverless (Vercel) -> TRANSACTION pooler, port 6543. The session
+    #     pooler allows only 15 clients in total, and one page load fanning
+    #     out across lambda instances exhausts it immediately
+    #     (FATAL: EMAXCONNSESSION). Verified on the live deployment.
+    #   Long-lived container -> either works; session pooler (5432) is fine.
+    #
+    # Transaction mode is safe here because the store commits per method and
+    # never holds a transaction across calls. It does require psycopg's
+    # prepared statements to be off — see PostgresStore.__init__.
     #
     # OPTIONAL. Consolidation currently runs against an in-process store, so
     # the service is fully functional without a database and this is only used
