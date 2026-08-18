@@ -81,9 +81,14 @@ export async function uploadAction(
         ok: false,
         message: `${upload.filename}: nothing could be matched.`,
         detail:
-          `${upload.rowCount} rows read, all set aside for review. ` +
-          'Usually this means the Apps Tracker for that period has not been ' +
-          'imported yet, so there are no applications for these rows to attach to.',
+          `${upload.rowCount} rows read, all set aside for review. Every ` +
+          'serial number in this file is one the applications master has not ' +
+          'seen, which almost always means the Apps Tracker for that period ' +
+          'has not been imported yet — import it and upload this file again. ' +
+          'If that tracker is never coming, Settings → "Create applications ' +
+          'from bank files" will build a provisional record from each bank ' +
+          'row instead. Those records carry no fundraiser or site, so they ' +
+          'cannot be paid on and they do count against realization.',
       }
     }
 

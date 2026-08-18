@@ -8,7 +8,7 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.domain.models import Cutoff, PayrollRunDetail, StatusClassification, StatusCode
+from app.domain.models import Cutoff, PayrollRunDetail, StatusClassification, StatusCode, Wire
 from app.domain.reference import CLAWBACK_REASONS
 from app.routes.deps import ActorDep, StoreDep, TodayDep
 from app.services import payroll, payroll_runs
@@ -72,7 +72,15 @@ def upsert_status_code(body: StatusCodeIn, store: StoreDep, actor: ActorDep) -> 
     return code
 
 
-class PlanIn(BaseModel):
+class PlanIn(Wire):
+    """A commission plan.
+
+    Extends `Wire` for the camelCase aliases. As a plain BaseModel every field
+    here silently ignored the UI's payload and fell back to its default, so
+    editing the commission multiplier — the one rule the client most needs to
+    change — returned 200 and changed nothing.
+    """
+
     id: str = "default"
     name: str = "Default plan"
     pct_of_pledge: Decimal = Field(default=Decimal(300), ge=0)

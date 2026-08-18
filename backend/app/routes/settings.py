@@ -16,8 +16,9 @@ from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from app.domain.models import Wire
 from app.domain.reference import (
     BONUS_BASES,
     BONUS_PERIODS,
@@ -35,13 +36,13 @@ router = APIRouter(tags=["settings"], prefix="/settings")
 # ---------------------------------------------------------------------------
 
 
-class BonusTierIn(BaseModel):
+class BonusTierIn(Wire):
     threshold: Decimal = Field(ge=0)
     flat_amount: Decimal | None = Field(default=None, ge=0)
     pct_of_commission: Decimal | None = Field(default=None, ge=0)
 
 
-class BonusRuleIn(BaseModel):
+class BonusRuleIn(Wire):
     id: str = Field(min_length=1, max_length=60)
     name: str = Field(min_length=1, max_length=120)
     basis: Literal["realized_count", "realized_value", "realization_rate", "signup_count"] = (
@@ -154,8 +155,15 @@ def delete_bonus_rule(rule_id: str, store: StoreDep, actor: ActorDep) -> dict:
 # ---------------------------------------------------------------------------
 
 
-class RulesIn(BaseModel):
-    """The handful of settings that are single values rather than tables."""
+class RulesIn(Wire):
+    """The handful of settings that are single values rather than tables.
+
+    Extends `Wire`, not `BaseModel`. GET /rules returns camelCase, so anything
+    that reads the rules and writes them back sends camelCase — and on a plain
+    BaseModel none of those names bind, every field stays None, and the
+    handler's `if value is not None` guard skips all of them. The write
+    returned 200 with the OLD values echoed back, so it looked like it worked.
+    """
 
     realization_basis: Literal["submitted", "signups"] | None = None
     pay_date_rule: Literal["eom_or_30", "nearest_business_day"] | None = None

@@ -245,11 +245,17 @@ class Settings:
     #: When a bank row has no matching application, create a provisional one
     #: from the bank's own columns instead of setting the row aside.
     #:
-    #: OFF by default and deliberately so: an application built from a bank
+    #: OFF by default and deliberately so. An application built from a bank
     #: file has no email, no date of birth, no site and no fundraiser name, so
-    #: it cannot be attributed or paid on. It exists to unblock the case where
-    #: the bank file arrives before the Apps Tracker has been updated, and is
-    #: superseded the moment the real tracker is imported.
+    #: it cannot be attributed to anyone or paid on — but it DOES enter the
+    #: realization denominator, which silently drags down every fundraiser and
+    #: site figure with sign-ups nobody made. Turning this on was measured to
+    #: move the headline rates on the sample data.
+    #:
+    #: The right answer to "121 rows set aside" is almost always to import the
+    #: Apps Tracker for that period. This switch is for the case where that
+    #: tracker genuinely is not coming and the billing history matters more
+    #: than the attribution.
     create_missing_from_bank: bool = False
 
     #: Used only where a single cross-currency total is unavoidable. None means
