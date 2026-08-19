@@ -85,9 +85,15 @@ export function UploadImpactPanel({
                   ) : (
                     <Badge tone="warning">Masked</Badge>
                   )}
-                  <Button size="sm" variant={s.urgent ? 'primary' : 'secondary'}>
-                    ↧ Generate
-                  </Button>
+                  {/* A plain link, not a Server Action: the response is a
+                      file and the browser saves it directly. Same route the
+                      Exports page uses — this button looked identical to those
+                      and did nothing, which is the worst of both. */}
+                  <a href={`/api/exports/${s.code}`} download>
+                    <Button size="sm" variant={s.urgent ? 'primary' : 'secondary'}>
+                      ↧ Generate
+                    </Button>
+                  </a>
                 </span>
               </li>
             ))}

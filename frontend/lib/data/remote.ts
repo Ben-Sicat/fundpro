@@ -364,6 +364,24 @@ export async function getLeaderNames(): Promise<string[]> {
  *
  * Pass `cancellationDate: null` to clear one recorded in error.
  */
+export async function setVerification(input: {
+  serialNo: string
+  calledOn: string | null
+  reached: boolean
+  method?: string
+}): Promise<Pledge> {
+  return (await apiSend(
+    'PATCH',
+    `/pledges/${encodeURIComponent(input.serialNo)}/verification`,
+    S.PledgeSchema,
+    {
+      calledOn: input.calledOn,
+      reached: input.reached,
+      method: input.method ?? 'phone',
+    },
+  )) as Pledge
+}
+
 export async function setCancellation(input: {
   serialNo: string
   cancellationDate: string | null

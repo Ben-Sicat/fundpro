@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -10,6 +11,11 @@ from pydantic import BaseModel, Field
 from app.domain.models import BillingEvent, Donor, Pledge, PledgeNote, Wire
 from app.routes.deps import ActorDep, FiltersDep, StoreDep
 from app.services import analytics
+
+#: Both countries the agency operates in are UTC+8, so one zone covers the
+#: whole operation. Displayed dates are Manila per the conventions, and a
+#: "today" ceiling has to agree with what the operator sees on their own clock.
+OPERATING_TZ = ZoneInfo("Asia/Manila")
 
 router = APIRouter(tags=["pledges"])
 
@@ -72,6 +78,84 @@ def add_note(
     # The note body quotes a donor conversation, so it never enters the log.
     store.log(actor, "note.add", f"note added to {serial_no}")
     return note
+
+
+class VerificationIn(Wire):
+    """Record the outcome of a verification call, or clear a mistaken one.
+
+    Verification is a CONFIRMED requirement (MASTER_SPEC 4.2) and a quality
+    gate, not a cosmetic flag: somebody phoned the donor and established they
+    are a real person who knows they signed up. Payroll can be configured to
+    require it before a pledge is payable, so this is the one manual edit that
+    can move money.
+
+    `reached=False` records that a call was MADE and failed — a different fact
+    from never having called, and the one the desk needs to see to know who to
+    chase. It clears any previous pass rather than leaving a stale tick behind.
+    """
+
+    #: When the call happened. Defaults to today on the client.
+    called_on: date | None = None
+    #: True = donor confirmed. False = call attempted, donor not reached.
+    reached: bool = True
+    #: How they were contacted, e.g. 'phone'. Free text: the methods differ by
+    #: country and this is not worth an enum nobody can extend from settings.
+    method: str = Field(default="phone", max_length=60)
+
+
+@router.patch("/pledges/{serial_no}/verification")
+def set_verification(
+    serial_no: str,
+    body: VerificationIn,
+    store: StoreDep,
+    filters: FiltersDep,
+    actor: ActorDep,
+) -> Pledge:
+    """Record a verification call against a pledge.
+
+    Deliberately narrow. It writes only the verification fields and never
+    touches billing state: a pledge's current status is DERIVED from the
+    append-only event history, so there is no safe way to set it by hand and no
+    endpoint here that tries.
+    """
+    pledge = get_pledge(serial_no, store, filters)
+
+    if body.called_on is None:
+        # Clearing, for a call logged against the wrong pledge.
+        updated = pledge.model_copy(
+            update={"verified": False, "verified_at": None, "verified_by": None}
+        )
+        store.upsert_pledge(updated)
+        store.log(actor, "pledge.verification.clear", f"{serial_no} verification cleared")
+        return updated
+
+    # The ceiling is TODAY IN MANILA, not in UTC. The operation runs at UTC+8,
+    # so a call made at 07:00 local is still yesterday by UTC — comparing
+    # against UTC would reject a same-day morning call as "in the future".
+    if body.called_on > datetime.now(OPERATING_TZ).date():
+        raise HTTPException(422, "A verification call cannot be dated in the future.")
+    if pledge.signup_date and body.called_on < pledge.signup_date:
+        raise HTTPException(
+            422, "A verification call cannot predate the sign-up it is verifying."
+        )
+
+    updated = pledge.model_copy(
+        update={
+            # Not reached means the call happened but proved nothing, so the
+            # date is recorded and the gate stays shut.
+            "verified": body.reached,
+            "verified_at": body.called_on if body.reached else None,
+            "verified_by": actor,
+        }
+    )
+    store.upsert_pledge(updated)
+    store.log(
+        actor,
+        "pledge.verification.set",
+        f"{serial_no} {'verified' if body.reached else 'not reached'} "
+        f"on {body.called_on.isoformat()} via {body.method}",
+    )
+    return updated
 
 
 @router.get("/donors")

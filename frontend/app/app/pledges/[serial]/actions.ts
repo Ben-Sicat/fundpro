@@ -108,3 +108,67 @@ export async function setCancellationAction(
   revalidatePath('/app', 'layout')
   return { ok: true, error: null }
 }
+
+
+/**
+ * Record the outcome of a verification call.
+ *
+ * Verification is a quality gate, not a label: payroll can be configured to
+ * require it before a pledge is payable, so this is the one manual edit on this
+ * page that can move money. It therefore needs `edit_reference` — the same
+ * permission as a cancellation — rather than being something any viewer can set.
+ *
+ * "Not reached" is a real outcome and is recorded as one. It clears any earlier
+ * pass, because a stale tick outliving a failed follow-up call is exactly the
+ * kind of thing that pays commission on a donor nobody could contact.
+ */
+export async function setVerificationAction(
+  serialNo: string,
+  _prev: CancellationState,
+  formData: FormData,
+): Promise<CancellationState> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: 'Not signed in.' }
+
+  const perms = permissionsFor({
+    id: session.user.id,
+    role: session.user.role,
+    charityId: session.user.charityId,
+    permissions: session.user.permissions,
+  })
+  if (!perms.includes('edit_reference')) {
+    return { ok: false, error: 'Your role cannot record a verification call.' }
+  }
+  if (!backendEnabled()) {
+    return {
+      ok: false,
+      error: 'Recording a call needs the processing service running.',
+    }
+  }
+
+  const clearing = formData.get('intent') === 'clear'
+  const calledOn = String(formData.get('calledOn') ?? '').trim()
+  const reached = formData.get('reached') === 'yes'
+  const method = String(formData.get('method') ?? 'phone').trim()
+
+  if (!clearing && !calledOn) return { ok: false, error: 'Pick the date of the call.' }
+
+  try {
+    const { setVerification } = await import('@/lib/data/remote')
+    await setVerification({
+      serialNo,
+      calledOn: clearing ? null : calledOn,
+      reached: clearing ? false : reached,
+      method,
+    })
+  } catch (error) {
+    // The service names the problem ("cannot predate the sign-up") without
+    // quoting donor data.
+    const detail = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: detail.replace(/^\S+ → \d+: /, '') }
+  }
+
+  revalidatePath(`/app/pledges/${serialNo}`)
+  revalidatePath('/app', 'layout')
+  return { ok: true, error: null }
+}

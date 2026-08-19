@@ -5,11 +5,21 @@ import { StatusBadge } from '@/components/status-badge'
 import { LifecycleRail } from '@/components/lifecycle-rail'
 import { RetryTicker } from '@/components/retry-ticker'
 import { CancellationForm } from '@/components/cancellation-form'
+import { VerificationForm } from '@/components/verification-form'
 import { getBillingEvents, getPledge, getPledgeNotes } from '@/lib/data'
 import { auth } from '@/lib/auth/auth'
 import { permissionsFor } from '@/lib/auth/permissions'
-import { age, date, dateTime, expiry, money, daysAgo, initials } from '@/lib/format'
-import { addNoteAction, setCancellationAction } from './actions'
+import {
+  age,
+  date,
+  dateTime,
+  expiry,
+  money,
+  daysAgo,
+  initials,
+  operatingToday,
+} from '@/lib/format'
+import { addNoteAction, setCancellationAction, setVerificationAction } from './actions'
 
 export async function generateMetadata({
   params,
@@ -47,6 +57,8 @@ export default async function PledgeDetailPage({
   const canSeePayment = perms.includes('see_payment')
   const canSeePayroll = perms.includes('see_payroll')
   const canEditReference = perms.includes('edit_reference')
+  // Manila, not UTC — see operatingToday.
+  const today = operatingToday()
 
   // The seven lifecycle dates, in order — the backbone of all reporting.
   const lifecycle = [
@@ -75,11 +87,6 @@ export default async function PledgeDetailPage({
             {pledge.country === 'MY' ? <Badge tone="accent">Malaysia</Badge> : null}
           </div>
           <div className="flex gap-2">
-            {!pledge.verified ? (
-              <Button variant="primary" size="sm" disabled title="Coming soon">
-                ☎ Record verification call
-              </Button>
-            ) : null}
             {/* B1 is the lifecycle report; filtered to this one serial. */}
             <a href={`/api/exports/B1?q=${encodeURIComponent(pledge.serialNo)}`} download>
               <Button size="sm">↧ Export row</Button>
@@ -174,15 +181,16 @@ export default async function PledgeDetailPage({
               <Row label="City">{pledge.city}</Row>
               <Row label="Country">{pledge.country}</Row>
               <Row label="Verified">
-                {pledge.verified ? (
-                  <Badge tone="good" dot>
-                    {pledge.verifiedBy}
-                  </Badge>
-                ) : (
-                  <Badge tone="warning" dot>
-                    Not verified
-                  </Badge>
-                )}
+                {/* The control sits beside the field it changes, rather than in
+                    the page header away from any context. */}
+                <VerificationForm
+                  verified={pledge.verified}
+                  verifiedBy={pledge.verifiedBy}
+                  formattedDate={pledge.verifiedAt ? date(pledge.verifiedAt) : ''}
+                  today={today}
+                  action={setVerificationAction.bind(null, pledge.serialNo)}
+                  canEdit={canEditReference}
+                />
               </Row>
             </dl>
           ) : (

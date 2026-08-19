@@ -99,3 +99,23 @@ export function initials(name: string): string {
     .map((p) => p[0]?.toUpperCase() ?? '')
     .join('')
 }
+
+
+/**
+ * Today's date in the operating timezone, as `YYYY-MM-DD`.
+ *
+ * Both countries the agency works in are UTC+8, and the service validates
+ * "not in the future" against Manila for the same reason: at 07:00 local it is
+ * still yesterday in UTC, so a UTC-derived default would have the server reject
+ * a same-day morning entry. Never use `new Date().toISOString()` for a date
+ * input's default here — that is the UTC date.
+ */
+export function operatingToday(): string {
+  // en-CA formats as YYYY-MM-DD, which is what a date input wants.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import {
   Badge,
-  Button,
   Card,
   CardHeader,
   Input,
@@ -13,7 +12,9 @@ import {
   Th,
   Tr,
 } from '@/components/ui'
+import { AddStatusCode } from '@/components/add-status-code'
 import { getStatusCodes } from '@/lib/data'
+import { addStatusCodeFromSettings } from './actions'
 import { MOCK_USERS } from '@/lib/mock/users'
 
 export const metadata: Metadata = { title: 'Settings · FundPro' }
@@ -130,7 +131,7 @@ export default async function SettingsPage() {
           <CardHeader
             title="Status dictionary"
             subtitle="Logic branches on classification, never on the raw ID. Only 66 and 59 are confirmed by the bank."
-            action={<Button size="sm" variant="primary">Add code</Button>}
+            action={<AddStatusCode action={addStatusCodeFromSettings} />}
           />
           <Table>
             <thead>
